@@ -1,0 +1,69 @@
+import { Routes } from '@angular/router';
+import { authGuard, guestGuard, passwordChangedGuard, permissionGuard } from './core/auth/auth.guards';
+import { Permission } from './core/auth/auth.models';
+import { NAVIGATION } from './layout/navigation';
+
+/** Modules that are built; every other sidebar module shows a placeholder until its phase. */
+const BUILT: Record<string, Routes[number]['loadComponent']> = {
+  users: () => import('./features/users/users-page').then((m) => m.UsersPage),
+  settings: () => import('./features/settings/settings-page').then((m) => m.SettingsPage),
+  clients: () => import('./features/clients/clients-page').then((m) => m.ClientsPage),
+  banks: () => import('./features/banks/banks-page').then((m) => m.BanksPage),
+};
+
+const moduleRoutes: Routes = NAVIGATION.flatMap((g) => g.items)
+  .filter((i) => i.path !== 'dashboard')
+  .map((i) => ({
+    path: i.path,
+    title: `${i.label} · ValuPro`,
+    canActivate: [permissionGuard],
+    data: { permission: i.permission, path: i.path },
+    loadComponent: BUILT[i.path] ?? (() => import('./shared/module-placeholder').then((m) => m.ModulePlaceholder)),
+  }));
+
+export const routes: Routes = [
+  {
+    path: 'login',
+    title: 'Sign in · ValuPro',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/login').then((m) => m.Login),
+  },
+  {
+    path: '',
+    canActivate: [authGuard],
+    loadComponent: () => import('./layout/shell').then((m) => m.Shell),
+    children: [
+      {
+        path: 'change-password',
+        title: 'Change password · ValuPro',
+        loadComponent: () => import('./features/account/change-password').then((m) => m.ChangePassword),
+      },
+      {
+        path: '',
+        canActivateChild: [passwordChangedGuard],
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+          {
+            path: 'dashboard',
+            title: 'Dashboard · ValuPro',
+            loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
+          },
+          {
+            path: 'banks/:id',
+            title: 'Bank · ValuPro',
+            canActivate: [permissionGuard],
+            data: { permission: Permission.banksView },
+            loadComponent: () => import('./features/banks/bank-detail-page').then((m) => m.BankDetailPage),
+          },
+          ...moduleRoutes,
+          {
+            path: 'forbidden',
+            title: 'No access · ValuPro',
+            loadComponent: () => import('./shared/forbidden').then((m) => m.Forbidden),
+          },
+        ],
+      },
+    ],
+  },
+  { path: '**', redirectTo: '' },
+];

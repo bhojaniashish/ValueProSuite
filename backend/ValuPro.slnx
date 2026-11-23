@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ValuPro.Api/ValuPro.Api.csproj" />
+    <Project Path="src/ValuPro.Application/ValuPro.Application.csproj" />
+    <Project Path="src/ValuPro.Domain/ValuPro.Domain.csproj" />
+    <Project Path="src/ValuPro.Infrastructure/ValuPro.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ValuPro.UnitTests/ValuPro.UnitTests.csproj" />
+  </Folder>
+</Solution>

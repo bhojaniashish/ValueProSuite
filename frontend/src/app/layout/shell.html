@@ -1,0 +1,68 @@
+<aside class="sidebar" aria-label="Main navigation">
+  <div class="brand">
+    @if (brand.branding().logoUrl; as logo) {
+      <span class="logo img"><img [src]="logo" alt="" /></span>
+    } @else {
+      <span class="logo"><i class="fa-solid fa-scale-balanced"></i></span>
+    }
+    <span class="word" [title]="brand.branding().firmName">{{ brand.branding().firmName }}</span>
+  </div>
+
+  <nav class="nav">
+    @for (group of groups(); track group.label) {
+      <div class="group">{{ group.label }}</div>
+      @for (item of group.items; track item.path) {
+        <a class="item" [routerLink]="['/', item.path]" routerLinkActive="active" [attr.title]="item.label">
+          <i class="fa-solid" [class]="item.icon"></i>
+          <span>{{ item.label }}</span>
+        </a>
+      }
+    }
+  </nav>
+
+  <div class="tenant">
+    <i class="fa-solid fa-building"></i>
+    <span>{{ auth.user()?.tenantName }}</span>
+  </div>
+</aside>
+
+<div class="backdrop" (click)="mobileOpen.set(false)"></div>
+
+<div class="main">
+  <header class="topbar">
+    <button class="icon-btn" type="button" (click)="toggleSidebar()" aria-label="Toggle navigation">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    <h1 class="title">{{ pageTitle() }}</h1>
+
+    <div class="spacer"></div>
+
+    <button class="icon-btn" type="button" aria-label="Notifications" title="Notifications (Phase 4)">
+      <i class="fa-regular fa-bell"></i>
+    </button>
+
+    <div class="profile">
+      <button class="profile-btn" type="button" (click)="menuOpen.update((v) => !v)" [attr.aria-expanded]="menuOpen()" aria-label="Account menu">
+        <span class="avatar">{{ initials() }}</span>
+        <span class="who">
+          <span class="name">{{ auth.user()?.fullName }}</span>
+          <span class="role">{{ auth.user()?.roles?.join(', ') }}</span>
+        </span>
+        <i class="fa-solid fa-chevron-down caret"></i>
+      </button>
+      @if (menuOpen()) {
+        <div class="menu" role="menu">
+          <div class="menu-head">{{ auth.user()?.email }}</div>
+          <a role="menuitem" routerLink="/change-password"><i class="fa-solid fa-lock"></i> Change password</a>
+          <button class="out" type="button" role="menuitem" (click)="auth.logout()">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign out
+          </button>
+        </div>
+      }
+    </div>
+  </header>
+
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>

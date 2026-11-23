@@ -1,0 +1,163 @@
+<div class="page-head">
+  <div>
+    <h2>User Management</h2>
+    <p>{{ summary()?.total ?? '–' }} users across {{ roles.length }} roles · with permission matrix</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="#permissions"><i class="fa-solid fa-table-cells-large"></i> Permissions</a>
+    @if (canManage()) {
+      <button class="btn btn-pri" type="button" (click)="editing.set(null)">
+        <i class="fa-solid fa-user-plus"></i> Add User
+      </button>
+    }
+  </div>
+</div>
+
+<div class="stats">
+  <div class="card stat"><span class="ic b-brand"><i class="fa-solid fa-users"></i></span>
+    <div><b class="tnum">{{ summary()?.total ?? '–' }}</b><span>Total Users</span></div></div>
+  <div class="card stat"><span class="ic b-ok"><i class="fa-solid fa-user-check"></i></span>
+    <div><b class="tnum">{{ summary()?.active ?? '–' }}</b><span>Active</span></div></div>
+  <div class="card stat"><span class="ic b-purple"><i class="fa-solid fa-user-tie"></i></span>
+    <div><b class="tnum">{{ summary()?.valuers ?? '–' }}</b><span>Valuers</span></div></div>
+  <div class="card stat"><span class="ic b-gold"><i class="fa-solid fa-user-shield"></i></span>
+    <div><b class="tnum">{{ summary()?.reviewers ?? '–' }}</b><span>Reviewers</span></div></div>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <div class="search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input
+        type="search"
+        placeholder="Search name, email, registration, phone"
+        aria-label="Search users"
+        [value]="query().search"
+        (input)="onSearch($any($event.target).value)"
+      />
+    </div>
+    <select aria-label="Filter by role" [value]="query().role" (change)="onFilter('role', $any($event.target).value)">
+      <option value="">All Roles</option>
+      @for (r of roles; track r) { <option [value]="r">{{ r }}</option> }
+    </select>
+    <select aria-label="Filter by status" [value]="query().status" (change)="onFilter('status', $any($event.target).value)">
+      <option value="">All Status</option>
+      @for (s of statuses; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+    </select>
+    @if (filtered()) {
+      <button class="btn btn-ghost btn-sm" type="button" (click)="clearFilters()"><i class="fa-solid fa-xmark"></i> Clear</button>
+    }
+    @if (loading()) { <i class="fa-solid fa-spinner fa-spin muted spin"></i> }
+  </div>
+
+  @if (loadError()) {
+    <div class="empty">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <b>Could not load users</b>
+      <span>{{ loadError() }}</span>
+      <button class="btn btn-soft btn-sm" type="button" (click)="load()">Try again</button>
+    </div>
+  } @else if (page(); as p) {
+    @if (p.items.length === 0) {
+      <div class="empty">
+        <i class="fa-solid fa-user-slash"></i>
+        <b>No users found</b>
+        <span>{{ filtered() ? 'Try a different search or filter.' : 'Add your first team member.' }}</span>
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="data" [class.dim]="loading()">
+          <thead>
+            <tr>
+              <th class="sortable" (click)="sortBy('name')">User <i class="fa-solid" [class]="sortIcon('name')"></i></th>
+              <th class="sortable" (click)="sortBy('role')">Role <i class="fa-solid" [class]="sortIcon('role')"></i></th>
+              <th class="hide-md">Registration</th>
+              <th class="hide-md">Phone</th>
+              <th class="sortable hide-sm" (click)="sortBy('lastlogin')">Last Active <i class="fa-solid" [class]="sortIcon('lastlogin')"></i></th>
+              <th class="sortable" (click)="sortBy('status')">Status <i class="fa-solid" [class]="sortIcon('status')"></i></th>
+              @if (canManage()) { <th class="right" aria-label="Actions"></th> }
+            </tr>
+          </thead>
+          <tbody>
+            @for (u of p.items; track u.id) {
+              <tr>
+                <td>
+                  <div class="who">
+                    <span class="avatar" [style.background]="avatarColor(u.fullName)">{{ initials(u.fullName) }}</span>
+                    <div>
+                      <b>{{ u.fullName }} @if (isSelf(u)) { <span class="you">You</span> }</b>
+                      <span class="small muted">{{ u.email }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="badge" [class]="roleBadge(u.role)">{{ u.role }}</span></td>
+                <td class="hide-md"><span class="small tnum">{{ u.registrationNo ?? '—' }}</span></td>
+                <td class="hide-md"><span class="small tnum">{{ u.phone ?? '—' }}</span></td>
+                <td class="hide-sm"><span class="small muted">{{ timeAgo(u.lastLoginAt) }}</span></td>
+                <td>
+                  <span class="badge" [class]="status(u.status).badge"><i class="fa-solid fa-circle"></i> {{ status(u.status).label }}</span>
+                </td>
+                @if (canManage()) {
+                  <td class="right nowrap">
+                    <button class="btn-icon" type="button" title="Edit" [attr.aria-label]="'Edit ' + u.fullName" (click)="editing.set(u)">
+                      <i class="fa-solid fa-pen"></i>
+                    </button>
+                    @if (!isSelf(u)) {
+                      <button class="btn-icon" type="button" title="Reset password" [attr.aria-label]="'Reset password for ' + u.fullName" (click)="confirmReset.set(u)">
+                        <i class="fa-solid fa-key"></i>
+                      </button>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <span class="small muted">{{ range() }}</span>
+        <div class="pg">
+          <button class="btn-icon" type="button" aria-label="Previous page" [disabled]="p.page <= 1" (click)="goTo(p.page - 1)">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <span class="small tnum">Page {{ p.page }} of {{ pages() }}</span>
+          <button class="btn-icon" type="button" aria-label="Next page" [disabled]="p.page >= pages()" (click)="goTo(p.page + 1)">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    }
+  } @else {
+    <div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading users…</span></div>
+  }
+</div>
+
+<vp-permission-matrix [canEdit]="canManage()" (changed)="onPermissionsChanged()" />
+
+@if (editing() !== undefined) {
+  <vp-user-form-dialog
+    [user]="editing() ?? null"
+    [isSelf]="!!editing() && isSelf(editing()!)"
+    (saved)="onSaved($event)"
+    (closed)="editing.set(undefined)"
+  />
+}
+
+@if (confirmReset(); as u) {
+  <vp-dialog title="Reset password?" [subtitle]="u.fullName" icon="fa-key" tone="b-warn" size="sm" (closed)="confirmReset.set(null)">
+    <p class="confirm">
+      {{ u.fullName }} will be signed out on all devices and given a new temporary password, which you'll see next.
+    </p>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="confirmReset.set(null)">Cancel</button>
+      <button class="btn btn-pri" type="button" [disabled]="resetting()" (click)="resetPassword()">
+        <i class="fa-solid" [class]="resetting() ? 'fa-spinner fa-spin' : 'fa-key'"></i> Reset password
+      </button>
+    </ng-container>
+  </vp-dialog>
+}
+
+@if (tempPassword(); as t) {
+  <vp-temp-password-dialog [title]="t.title" [name]="t.name" [email]="t.email" [password]="t.password" (closed)="tempPassword.set(null)" />
+}

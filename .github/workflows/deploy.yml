@@ -1,0 +1,91 @@
+name: Deploy
+
+# Manual for now; switch dev to `push: branches: [main]` once the environment exists.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [dev, qa, prod]
+        default: dev
+
+permissions:
+  id-token: write # OIDC login to Azure, no stored passwords
+  contents: read
+
+# Required per GitHub environment (Settings → Environments):
+#   vars:    AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP
+#   secrets: JWT_SIGNING_KEY (48+ random characters)
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Provision infrastructure
+        id: infra
+        env:
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+        run: |
+          out=$(az deployment group create -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            -f infra/main.bicep -p infra/main.${{ inputs.environment }}.bicepparam \
+            --query properties.outputs -o json)
+          echo "apiName=$(echo "$out" | jq -r .apiName.value)" >> "$GITHUB_OUTPUT"
+          echo "webName=$(echo "$out" | jq -r .webName.value)" >> "$GITHUB_OUTPUT"
+          echo "sqlServer=$(echo "$out" | jq -r .sqlServerFqdn.value)" >> "$GITHUB_OUTPUT"
+          echo "database=$(echo "$out" | jq -r .databaseName.value)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - name: Build migration bundle
+        working-directory: backend
+        run: |
+          dotnet tool restore
+          dotnet ef migrations bundle -p src/ValuPro.Infrastructure -s src/ValuPro.Api \
+            -o ../efbundle --self-contained -r linux-x64 --force
+
+      # The pipeline's identity must be a member of the SQL admin group.
+      - name: Apply migrations and grant API access to SQL
+        run: |
+          # "Active Directory Default" picks up the azure/login session above.
+          ./efbundle --connection "Server=tcp:${{ steps.infra.outputs.sqlServer }},1433;Database=${{ steps.infra.outputs.database }};Authentication=Active Directory Default;Encrypt=True;"
+          sqlcmd -S "${{ steps.infra.outputs.sqlServer }}" -d "${{ steps.infra.outputs.database }}" --authentication-method ActiveDirectoryAzCli -Q "
+            IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '${{ steps.infra.outputs.apiName }}')
+            BEGIN
+              CREATE USER [${{ steps.infra.outputs.apiName }}] FROM EXTERNAL PROVIDER;
+              ALTER ROLE db_datareader ADD MEMBER [${{ steps.infra.outputs.apiName }}];
+              ALTER ROLE db_datawriter ADD MEMBER [${{ steps.infra.outputs.apiName }}];
+            END"
+
+      - name: Publish and deploy API
+        working-directory: backend
+        run: |
+          dotnet publish src/ValuPro.Api -c Release -o ../publish/api
+          cd ../publish/api && zip -qr ../api.zip .
+          az webapp deploy -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ steps.infra.outputs.apiName }}" \
+            --src-path ../api.zip --type zip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build and deploy web
+        working-directory: frontend
+        run: |
+          npm ci
+          npx ng build
+          token=$(az staticwebapp secrets list -n "${{ steps.infra.outputs.webName }}" --query properties.apiKey -o tsv)
+          npx @azure/static-web-apps-cli@2 deploy dist/frontend/browser \
+            --deployment-token "$token" --env production

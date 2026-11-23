@@ -1,0 +1,5 @@
+# Root
+.claude/settings.local.json
+/publish/
+efbundle*
+*.zip

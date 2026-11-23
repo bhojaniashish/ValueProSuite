@@ -1,0 +1,24 @@
+<section class="welcome">
+  <div>
+    <h2>Welcome, {{ firstName() }}</h2>
+    <p>
+      Signed in to <strong>{{ auth.user()?.tenantName }}</strong> as {{ auth.user()?.roles?.join(', ') }}
+      · {{ auth.user()?.permissions?.length }} permissions
+    </p>
+  </div>
+  <span class="badge">Phase 1 · Masters + Assignments</span>
+</section>
+
+<h3>Your modules</h3>
+<div class="grid">
+  @for (m of modules(); track m.path) {
+    <a class="tile" [routerLink]="['/', m.path]">
+      <span class="icon"><i class="fa-solid" [class]="m.icon"></i></span>
+      <span class="text">
+        <span class="name">{{ m.label }}</span>
+        <span class="summary">{{ m.summary }}</span>
+      </span>
+      @if (m.ready) { <span class="phase live">Live</span> } @else { <span class="phase">P{{ m.phase }}</span> }
+    </a>
+  }
+</div>

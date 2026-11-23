@@ -1,0 +1,149 @@
+<div class="page-head">
+  <div>
+    <h2>Client Management</h2>
+    <p>{{ summary()?.total ?? '–' }} {{ summary()?.total === 1 ? 'client' : 'clients' }} · individuals, builders, bank branches &amp; advocates</p>
+  </div>
+  @if (canManage()) {
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" (click)="importing.set(true)"><i class="fa-solid fa-file-import"></i> Import</button>
+      <button class="btn btn-pri" type="button" (click)="editing.set(null)"><i class="fa-solid fa-user-plus"></i> Add Client</button>
+    </div>
+  }
+</div>
+
+<div class="stats">
+  @for (t of types; track t.value) {
+    <button type="button" class="card stat tile" [class.active]="query().type === t.value" (click)="filterType(t.value)"
+      [attr.aria-pressed]="query().type === t.value" [attr.aria-label]="'Show only ' + t.plural">
+      <span class="ic" [class]="t.tone"><i class="fa-solid" [class]="t.icon"></i></span>
+      <div><b class="tnum">{{ summary() ? count(t.value) : '–' }}</b><span>{{ t.plural }}</span></div>
+    </button>
+  }
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <div class="search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="search" placeholder="Search name, code, mobile, email, PAN, GST, city" aria-label="Search clients"
+        [value]="query().search" (input)="onSearch($any($event.target).value)" />
+    </div>
+    <select aria-label="Filter by type" [value]="query().type" (change)="onFilter('type', $any($event.target).value)">
+      <option value="">All Types</option>
+      @for (t of types; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+    </select>
+    <select aria-label="Filter by state" [value]="query().state" (change)="onFilter('state', $any($event.target).value)">
+      <option value="">All States</option>
+      @for (s of summary()?.states ?? []; track s) { <option [value]="s">{{ s }}</option> }
+    </select>
+    @if (filtered()) {
+      <button class="btn btn-ghost btn-sm" type="button" (click)="clearFilters()"><i class="fa-solid fa-xmark"></i> Clear</button>
+    }
+    @if (loading()) { <i class="fa-solid fa-spinner fa-spin muted spin"></i> }
+  </div>
+
+  @if (loadError()) {
+    <div class="empty">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <b>Could not load clients</b>
+      <span>{{ loadError() }}</span>
+      <button class="btn btn-soft btn-sm" type="button" (click)="load()">Try again</button>
+    </div>
+  } @else if (page(); as p) {
+    @if (p.items.length === 0) {
+      <div class="empty">
+        <i class="fa-solid fa-users-slash"></i>
+        <b>{{ filtered() ? 'No clients match' : 'No clients yet' }}</b>
+        <span>{{ filtered() ? 'Try a different search or filter.' : 'Add your first client or import a list from Excel.' }}</span>
+        @if (!filtered() && canManage()) {
+          <div class="row">
+            <button class="btn btn-soft btn-sm" type="button" (click)="importing.set(true)"><i class="fa-solid fa-file-import"></i> Import</button>
+            <button class="btn btn-pri btn-sm" type="button" (click)="editing.set(null)"><i class="fa-solid fa-user-plus"></i> Add Client</button>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="data" [class.dim]="loading()">
+          <thead>
+            <tr>
+              <th class="sortable" (click)="sortBy('name')">Client <i class="fa-solid" [class]="sortIcon('name')"></i></th>
+              <th class="sortable" (click)="sortBy('type')">Type <i class="fa-solid" [class]="sortIcon('type')"></i></th>
+              <th class="hide-sm">Contact</th>
+              <th class="hide-md">PAN / GST</th>
+              <th class="sortable hide-md" (click)="sortBy('city')">City <i class="fa-solid" [class]="sortIcon('city')"></i></th>
+              <th class="right" aria-label="Actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of p.items; track c.id) {
+              <tr>
+                <td>
+                  <button class="who link" type="button" (click)="viewing.set(c)" [attr.aria-label]="'View ' + c.name">
+                    <span class="avatar" [style.background]="avatarColor(c.name)">{{ initials(c.name) }}</span>
+                    <div>
+                      <b>{{ c.name }}</b>
+                      <span class="small muted">{{ c.code }}{{ c.city ? ' · ' + c.city : '' }}</span>
+                    </div>
+                  </button>
+                </td>
+                <td><span class="badge" [class]="type(c.type).badge">{{ type(c.type).label }}</span></td>
+                <td class="hide-sm">
+                  <span class="tnum">{{ c.mobile }}</span>
+                  <span class="small muted block">{{ c.email || '—' }}</span>
+                </td>
+                <td class="hide-md">
+                  <span class="small tnum strong">{{ c.pan || '—' }}</span>
+                  <span class="small muted tnum block">{{ c.gstin || 'No GST' }}</span>
+                </td>
+                <td class="hide-md">{{ c.city || '—' }}</td>
+                <td class="right nowrap">
+                  <button class="btn-icon" type="button" title="View" [attr.aria-label]="'View ' + c.name" (click)="viewing.set(c)"><i class="fa-solid fa-eye"></i></button>
+                  @if (canManage()) {
+                    <button class="btn-icon" type="button" title="Edit" [attr.aria-label]="'Edit ' + c.name" (click)="editing.set(c)"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn-icon danger" type="button" title="Remove" [attr.aria-label]="'Remove ' + c.name" (click)="deleting.set(c)"><i class="fa-solid fa-trash-can"></i></button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <span class="small muted">{{ range() }}</span>
+        <div class="pg">
+          <button class="btn-icon" type="button" aria-label="Previous page" [disabled]="p.page <= 1" (click)="goTo(p.page - 1)"><i class="fa-solid fa-chevron-left"></i></button>
+          <span class="small tnum">Page {{ p.page }} of {{ pages() }}</span>
+          <button class="btn-icon" type="button" aria-label="Next page" [disabled]="p.page >= pages()" (click)="goTo(p.page + 1)"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
+    }
+  } @else {
+    <div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading clients…</span></div>
+  }
+</div>
+
+@if (editing() !== undefined) {
+  <vp-client-form-dialog [client]="editing() ?? null" (saved)="onSaved($event, !editing())" (closed)="editing.set(undefined)" />
+}
+
+@if (viewing(); as c) {
+  <vp-client-view-dialog [client]="c" [canEdit]="canManage()" (edit)="editFromView()" (closed)="viewing.set(null)" />
+}
+
+@if (deleting(); as c) {
+  <vp-dialog title="Remove client?" [subtitle]="c.code + ' · ' + c.name" icon="fa-trash-can" tone="b-danger" size="sm" (closed)="deleting.set(null)">
+    <p class="confirm">{{ c.name }} will be removed from the client list. Their past records are kept, and their PAN/GSTIN can be used for a new client.</p>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="deleting.set(null)">Cancel</button>
+      <button class="btn btn-danger" type="button" [disabled]="busy()" (click)="confirmDelete()">
+        <i class="fa-solid" [class]="busy() ? 'fa-spinner fa-spin' : 'fa-trash-can'"></i> Remove
+      </button>
+    </ng-container>
+  </vp-dialog>
+}
+
+@if (importing()) {
+  <vp-client-import-dialog (imported)="onImported($event)" (closed)="importing.set(false)" />
+}

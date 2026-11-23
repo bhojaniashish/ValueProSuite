@@ -1,0 +1,47 @@
+@use '../../shared/list-page';
+
+// Type cards are also filters.
+.stat.tile {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+
+  &:hover {
+    border-color: var(--brand);
+  }
+  &.active {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft);
+  }
+}
+
+.who.link {
+  padding: 0;
+  text-align: left;
+  color: inherit;
+
+  &:hover b {
+    color: var(--brand);
+  }
+}
+
+.block {
+  display: block;
+}
+
+.strong {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.btn-icon.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

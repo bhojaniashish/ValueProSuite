@@ -1,0 +1,51 @@
+<div class="wrap">
+  <section class="hero" aria-hidden="true">
+    <div class="brand">
+      @if (brand.branding().logoUrl; as logo) {
+        <span class="logo img"><img [src]="logo" alt="" /></span>
+      } @else {
+        <span class="logo"><i class="fa-solid fa-scale-balanced"></i></span>
+      }
+      {{ brand.branding().firmName }}
+    </div>
+    <h2>Property valuation, from site visit to signed report.</h2>
+    <p>Assignments, inspections, valuation, reports and billing for valuation firms.</p>
+  </section>
+
+  <section class="panel">
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <h1>Sign in</h1>
+      <p class="sub">Use your {{ brand.branding().firmName }} account.</p>
+
+      @if (error()) {
+        <div class="alert" role="alert"><i class="fa-solid fa-circle-exclamation"></i> {{ error() }}</div>
+      }
+
+      <label for="email">Email</label>
+      <input id="email" type="email" formControlName="email" autocomplete="username" inputmode="email" />
+      @if (form.controls.email.touched && form.controls.email.invalid) {
+        <span class="err">Enter a valid email address.</span>
+      }
+
+      <label for="password">Password</label>
+      <div class="pw">
+        <input
+          id="password"
+          [type]="showPassword() ? 'text' : 'password'"
+          formControlName="password"
+          autocomplete="current-password"
+        />
+        <button type="button" (click)="showPassword.update((v) => !v)" [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'">
+          <i class="fa-regular" [class.fa-eye]="!showPassword()" [class.fa-eye-slash]="showPassword()"></i>
+        </button>
+      </div>
+      @if (form.controls.password.touched && form.controls.password.invalid) {
+        <span class="err">Enter your password.</span>
+      }
+
+      <button class="primary" type="submit" [disabled]="busy()">
+        @if (busy()) { <i class="fa-solid fa-spinner fa-spin"></i> Signing in… } @else { Sign in }
+      </button>
+    </form>
+  </section>
+</div>
