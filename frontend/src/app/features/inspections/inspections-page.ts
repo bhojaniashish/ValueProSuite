@@ -97,9 +97,7 @@ import { PhotoQueue } from './photo-queue';
     .page-head { margin-bottom: 0; }
     .card { padding: 0; overflow: hidden; }
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line-2); }
-    .search { position: relative; flex: 1; min-width: 200px; }
-    .search i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; }
-    .search input { width: 100%; padding-left: 36px; }
+    .search { max-width: none; }
     .mine { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
     .list { display: flex; flex-direction: column; }
     .row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto 16px; align-items: center; gap: 14px; padding: 14px 18px;

@@ -105,7 +105,6 @@ const GSTIN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
     .type:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
     .type.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand) !important; }
     .upper { text-transform: uppercase; }
-    textarea { height: auto !important; padding: 10px 13px !important; resize: vertical; }
   `,
 })
 export class ClientFormDialog implements OnInit {

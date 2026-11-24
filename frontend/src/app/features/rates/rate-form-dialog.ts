@@ -31,9 +31,6 @@ function financialYearStart(): string {
   imports: [Dialog, FormsModule, AmountInput],
   templateUrl: './rate-form-dialog.html',
   styles: `
-    .fld-suf { flex-direction: row-reverse; }
-    .fld-suf span { border: 1px solid var(--line); border-left: none; border-radius: 0 9px 9px 0; }
-    .fld-suf input { border-radius: 9px 0 0 9px; }
     .note { margin: 0; padding: 10px 12px; border-radius: 9px; background: var(--info-soft); color: var(--info); font-size: 12.5px; line-height: 1.5; }
   `,
 })

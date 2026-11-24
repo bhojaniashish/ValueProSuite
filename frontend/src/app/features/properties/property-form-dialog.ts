@@ -105,11 +105,6 @@ import { mapsUrl, PROPERTY_TYPES, PROPERTY_USAGES, PropertiesApi, Property, Prop
     </vp-dialog>
   `,
   styles: `
-    .fld-suf { display: flex; }
-    .fld-suf input { border-radius: 9px 0 0 9px !important; }
-    .fld-suf span { display: grid; place-items: center; padding: 0 12px; background: var(--bg-2); border: 1px solid var(--line);
-      border-left: none; border-radius: 0 9px 9px 0; color: var(--muted); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
-    textarea { height: auto !important; padding: 10px 13px !important; resize: vertical; }
     .loc { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--line-2); border-radius: 12px; background: #fafbfe; }
     .loc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     .loc-head a { margin-left: auto; font-weight: 600; text-decoration: none; }

@@ -47,7 +47,6 @@ function toLocalInput(iso: string): string {
   styles: `
     .body { display: flex; flex-direction: column; gap: 14px; }
     .lead { margin: 0; line-height: 1.55; }
-    textarea { height: auto !important; padding: 10px 13px !important; resize: vertical; }
   `,
 })
 export class MoveDialog implements OnInit {

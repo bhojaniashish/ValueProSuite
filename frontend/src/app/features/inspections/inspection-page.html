@@ -72,7 +72,7 @@
 
   <div class="layout">
     <!-- Steps (desktop) -->
-    <nav class="side card" aria-label="Inspection steps">
+    <nav class="steps-side card" aria-label="Inspection steps">
       <div class="prog"><b>{{ progress() }}%</b><span class="small muted">complete</span></div>
       <div class="bar"><span [style.width.%]="progress()"></span></div>
       @for (s of sections(); track s.key) {
@@ -202,9 +202,9 @@
                   <div class="fld col-2">
                     <span class="lbl">Distance to (km)</span>
                     <div class="three">
-                      <label class="mini">Railway station<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.stationKm" /></label>
-                      <label class="mini">Bus stop<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.busStopKm" /></label>
-                      <label class="mini">City centre<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.cityCentreKm" /></label>
+                      <label class="fld">Railway station<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.stationKm" /></label>
+                      <label class="fld">Bus stop<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.busStopKm" /></label>
+                      <label class="fld">City centre<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.cityCentreKm" /></label>
                     </div>
                   </div>
                   <div class="fld col-2"><span class="lbl">Civic amenities</span><vp-multi label="Civic amenities" [options]="o.CIVIC" [(value)]="d.location.amenities" /></div>
@@ -224,8 +224,8 @@
                     @let bnd = $any(d.boundaries)[side[0]];
                     <div class="bound">
                       <b class="side">{{ side[1] }}</b>
-                      <label class="mini">At site<input [(ngModel)]="bnd.atSite" placeholder="Road / Plot 15 / Open land" /></label>
-                      <label class="mini">As per documents<input [(ngModel)]="bnd.asPerDocuments" /></label>
+                      <label class="fld">At site<input [(ngModel)]="bnd.atSite" placeholder="Road / Plot 15 / Open land" /></label>
+                      <label class="fld">As per documents<input [(ngModel)]="bnd.asPerDocuments" /></label>
                       <vp-yes-no [label]="side[1] + ' matches'" yes="Matches" no="Differs" [(value)]="bnd.matches" />
                     </div>
                   }
@@ -332,9 +332,9 @@
 
                 <h4 class="sub">Plot size</h4>
                 <div class="plot">
-                  <label class="mini">Length (ft)<input type="number" inputmode="decimal" min="0" [(ngModel)]="d.measurements.plotLengthFt" /></label>
+                  <label class="fld">Length (ft)<input type="number" inputmode="decimal" min="0" [(ngModel)]="d.measurements.plotLengthFt" /></label>
                   <span class="x">×</span>
-                  <label class="mini">Breadth (ft)<input type="number" inputmode="decimal" min="0" [(ngModel)]="d.measurements.plotBreadthFt" /></label>
+                  <label class="fld">Breadth (ft)<input type="number" inputmode="decimal" min="0" [(ngModel)]="d.measurements.plotBreadthFt" /></label>
                   @if (plotArea(); as a) {
                     <span class="small">= <b class="tnum">{{ a.toLocaleString('en-IN') }}</b> sq.ft</span>
                     @if (canEdit()) { <button class="btn btn-soft btn-sm" type="button" (click)="usePlotArea()">Use as land measured</button> }

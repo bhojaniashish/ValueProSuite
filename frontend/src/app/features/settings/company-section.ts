@@ -61,7 +61,6 @@ import { CompanySettings, INDIAN_STATES, SettingsApi } from './settings.api';
       }
     </form>
   `,
-  styles: `textarea { height: auto !important; padding: 10px 13px !important; resize: vertical; }`,
 })
 export class CompanySection {
   private readonly api = inject(SettingsApi);

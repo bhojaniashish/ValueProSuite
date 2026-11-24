@@ -108,7 +108,10 @@ npm --prefix frontend test -- --watch=false
 - **Files** go through `IFileStorage`; paths are `tenants/{tenantId}/…` and read links are short-lived SAS URLs.
 - **Own UI components, no UI kit.** The frontend uses its own design (from the prototype) and shared pieces in
   `src/app/shared` (`LocalTable` for in-browser search/sort/paging, `th[vpSort]`, `vp-pager`, `vp-tabs`,
-  `input[vpAmount]` for ₹ amounts with Indian grouping, plus the dialog, toast and typeahead in `core/ui`).
+  `input[vpAmount]` for ₹ amounts with Indian grouping, `vp-choice` / `vp-multi` / `vp-yes-no` chips, plus the dialog,
+  toast and typeahead in `core/ui`). Every text box, dropdown and notes box gets one style from `styles.scss` (no
+  component restyles them); wrap a group in `.dense` (tables) or `.large` (sign-in) for the other sizes, and use
+  `.fld`, `.fld-pre` (₹ before) / `.fld-suf` (% after) and `.search` for layout. On phones boxes use 16px text so iOS doesn't zoom.
   PrimeNG was tried and dropped: from v22 it needs a commercial PrimeUI licence key. Add MIT libraries only for heavy
   widgets (Angular CDK, Chart.js, FullCalendar, Leaflet, TipTap).
 - **Migrations:** `dotnet ef migrations add <Name> -p src/ValuPro.Infrastructure -s src/ValuPro.Api -o Persistence/Migrations` (run in `backend`). CI fails if the model has changes without a migration.

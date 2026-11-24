@@ -121,7 +121,6 @@ export function todayIso(offsetDays = 0): string {
     </vp-dialog>
   `,
   styles: `
-    textarea { height: auto !important; padding: 10px 13px !important; resize: vertical; }
     .seg { display: flex; gap: 6px; }
     .seg label { position: relative; flex: 1; display: grid; place-items: center; height: 40px; border: 1px solid var(--line); border-radius: 9px;
       font-size: 13px !important; font-weight: 600; color: var(--ink-2) !important; cursor: pointer; }

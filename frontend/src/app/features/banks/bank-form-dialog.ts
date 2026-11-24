@@ -99,13 +99,9 @@ import { Bank, BanksApi, COMMON_BANKS, DEPRECIATION_METHODS, DepreciationMethod,
     form { display: flex; flex-direction: column; gap: 16px; }
     .upper { text-transform: uppercase; }
     .color { display: flex; align-items: center; gap: 8px; }
-    .color input[type='color'] { flex: none; width: 44px; padding: 4px; cursor: pointer; }
+    .color input[type='color'] { flex: none; }
     .section { padding-top: 14px; border-top: 1px solid var(--line-2); }
     .section h4 { margin: 0 0 12px; font-size: 14px; }
-    .fld-suf { display: flex; }
-    .fld-suf input { border-radius: 9px 0 0 9px !important; }
-    .fld-suf span { display: grid; place-items: center; padding: 0 12px; background: var(--bg-2); border: 1px solid var(--line);
-      border-left: none; border-radius: 0 9px 9px 0; color: var(--muted); font-weight: 600; }
     .hint-line { margin-top: -6px; font-size: 12px; }
     .hint-line .hint { color: var(--muted); }
     .hint-line .err { color: var(--danger); }

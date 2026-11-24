@@ -170,7 +170,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-.side {
+.steps-side {
   position: sticky;
   top: 80px;
   display: flex;
@@ -269,11 +269,6 @@
     padding: 14px 14px 18px;
   }
 }
-.lbl {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink-2);
-}
 .intro {
   margin: 0 0 14px;
 }
@@ -283,20 +278,6 @@
 }
 .top {
   margin-top: 14px;
-}
-textarea {
-  height: auto !important;
-  padding: 10px 13px !important;
-  resize: vertical;
-}
-.mini {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--muted);
-  input { font-weight: 400; }
 }
 .three {
   display: grid;
@@ -397,7 +378,7 @@ textarea {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 10px;
-  .mini { width: 120px; }
+  .fld { width: 130px; }
   .x { padding-bottom: 10px; color: var(--muted); }
   > span.small { padding-bottom: 10px; }
 }

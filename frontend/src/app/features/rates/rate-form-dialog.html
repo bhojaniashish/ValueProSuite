@@ -109,7 +109,7 @@
         </div>
         <div class="fld" [class.invalid]="problem('salvagePercent')">
           <label for="d-salv">Salvage Value</label>
-          <div class="fld-pre fld-suf"><input vpAmount [decimals]="2" id="d-salv" name="salvagePercent" [(ngModel)]="m.salvagePercent" /><span>%</span></div>
+          <div class="fld-suf"><input vpAmount [decimals]="2" id="d-salv" name="salvagePercent" [(ngModel)]="m.salvagePercent" /><span>%</span></div>
           @if (problem('salvagePercent')) { <span class="err">{{ problem('salvagePercent') }}</span> } @else { <span class="hint">Value left at the end of the building's life.</span> }
         </div>
         <div class="fld col-2">

@@ -136,7 +136,6 @@ import { QuestionnaireEditor } from './questionnaire-editor';
     .ml { margin-left: auto; }
     .search { position: relative; margin: 12px 16px 0; max-width: 380px; }
     .search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted-2); font-size: 13px; }
-    .search input { width: 100%; height: 38px; padding: 0 12px 0 34px; border: 1px solid var(--line); border-radius: 9px; font: inherit; font-size: 13.5px; }
     .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 20px; text-align: center; color: var(--muted); }
     .empty i { font-size: 24px; color: var(--muted-2); }
     .block { display: block; }

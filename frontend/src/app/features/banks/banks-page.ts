@@ -94,8 +94,6 @@ import { Bank, BanksApi, rateBasisLabel } from './banks.api';
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; }
     .search { position: relative; flex: 1 1 260px; max-width: 420px; }
     .search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted-2); font-size: 13px; }
-    .search input { width: 100%; height: 38px; padding: 0 12px 0 34px; border: 1px solid var(--line); border-radius: 9px; font: inherit; font-size: 13.5px; }
-    .search input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
     .bank { display: flex; flex-direction: column; }
     .bank.inactive { opacity: .7; }

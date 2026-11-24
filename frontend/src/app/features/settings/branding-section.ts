@@ -98,7 +98,7 @@ const TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
     .upload { position: relative; overflow: hidden; cursor: pointer; }
     .upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
     .color { display: flex; gap: 8px; }
-    .color input[type='color'] { flex: none; width: 48px; padding: 4px; cursor: pointer; }
+    .color input[type='color'] { flex: none; }
     .preview { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px; border: 1px solid var(--line-2); border-radius: 10px; }
   `,
 })

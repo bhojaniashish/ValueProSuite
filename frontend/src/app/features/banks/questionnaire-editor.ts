@@ -8,6 +8,7 @@ import { ANSWER_TYPES, AnswerType, Bank, BanksApi, Question } from './banks.api'
 /** The bank's dynamic questionnaire: questions the inspector answers for this bank's cases. */
 @Component({
   selector: 'vp-questionnaire-editor',
+  host: { class: 'dense' },
   imports: [FormsModule],
   template: `
     <div class="card" id="questionnaire">
@@ -80,9 +81,8 @@ import { ANSWER_TYPES, AnswerType, Bank, BanksApi, Question } from './banks.api'
     .num { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 9px; background: var(--brand-soft);
       color: var(--brand); font-weight: 700; font-size: 12.5px; }
     .body { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; }
-    input, select { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13.5px; background: #fff; }
-    input:focus, select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-    .text { width: 100%; font-weight: 500; }
+    .row select { width: auto; }
+    .text { font-weight: 500; }
     li.bad .text { border-color: var(--danger); }
     .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     .req { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); cursor: pointer; }

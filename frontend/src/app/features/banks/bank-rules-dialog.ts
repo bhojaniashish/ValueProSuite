@@ -9,6 +9,7 @@ import { Bank, BankRules, BanksApi, DEPRECIATION_METHODS, RATE_BASES } from './b
 /** All banks' valuation rules in one editable table; saves only rows that changed. */
 @Component({
   selector: 'vp-bank-rules-dialog',
+  host: { class: 'dense' },
   imports: [Dialog, FormsModule, BankBadge],
   template: `
     <vp-dialog title="Bank-specific Valuation Rules" subtitle="Rate basis, distress and realizable value, and depreciation per bank" icon="fa-sliders" (closed)="closed.emit()">
@@ -57,8 +58,8 @@ import { Bank, BankRules, BanksApi, DEPRECIATION_METHODS, RATE_BASES } from './b
     /* Keep the bank visible while the table scrolls sideways on small screens. */
     th:first-child, td:first-child { position: sticky; left: 0; z-index: 1; background: #fff; box-shadow: 1px 0 0 var(--line-2); }
     th:first-child { background: #fafbfe; }
-    select, input { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; background: #fff; }
-    input { width: 80px; }
+    select { width: auto; }
+    input { width: 84px; }
     tr.bad input { border-color: var(--danger); }
     .msg { margin: 12px 0 0; }
   `,

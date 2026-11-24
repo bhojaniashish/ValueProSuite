@@ -9,7 +9,7 @@ function announce(el: HTMLElement): void {
 
 const CHIP_STYLES = `
   :host { display: flex; flex-wrap: wrap; gap: 8px; }
-  button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 99px;
+  button { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-h); padding: 7px 14px; border: 1px solid var(--line); border-radius: 99px;
     background: #fff; color: var(--ink-2); font-size: 13.5px; font-weight: 500; line-height: 1.2; text-align: left;
     transition: border-color .15s var(--ease), background .15s var(--ease), color .15s var(--ease); }
   button:hover:not(:disabled) { border-color: var(--brand); }

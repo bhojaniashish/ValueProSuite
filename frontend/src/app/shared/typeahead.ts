@@ -50,8 +50,7 @@ export interface TypeaheadOption {
   `,
   styles: `
     .wrap { position: relative; }
-    input { width: 100%; height: 40px; padding: 0 36px 0 13px; border: 1px solid var(--line); border-radius: 9px; font: inherit; font-size: 13.5px; background: #fff; }
-    input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+    input { padding-right: 36px; }
     .picked input { border-color: var(--ok); }
     .tick { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ok); font-size: 13px; }
     .menu { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 260px; overflow-y: auto; margin: 0; padding: 4px;
