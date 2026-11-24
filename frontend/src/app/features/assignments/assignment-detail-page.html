@@ -90,8 +90,8 @@
         @if (d.remarks) { <div class="wide"><dt>Remarks</dt><dd>{{ d.remarks }}</dd></div> }
       </dl>
       @if (canViewInspection()) { <vp-photo-strip class="photos" [assignmentId]="d.assignment.id" /> }
+      <vp-document-strip class="photos" [assignmentId]="d.assignment.id" />
       <div class="later">
-        <span><i class="fa-solid fa-folder-open"></i> Documents: Phase 2</span>
         <span><i class="fa-solid fa-calculator"></i> Valuation: Phase 2</span>
         <span><i class="fa-solid fa-file-contract"></i> Report: Phase 3</span>
       </div>

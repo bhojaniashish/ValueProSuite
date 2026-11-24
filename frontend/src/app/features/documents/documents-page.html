@@ -1,0 +1,112 @@
+<div class="page-head">
+  <div>
+    <h2>Documents</h2>
+    <p>Documents perused for every case: sale deeds, extracts, plans and certificates. Open a case to record its documents.</p>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="card stat">
+    <span class="ic b-brand"><i class="fa-solid fa-folder-tree"></i></span>
+    <div><b class="tnum">{{ data()?.summary?.total ?? '–' }}</b><span>Recorded</span></div>
+  </div>
+  <div class="card stat">
+    <span class="ic b-info"><i class="fa-solid fa-paperclip"></i></span>
+    <div><b class="tnum">{{ data()?.summary?.withFile ?? '–' }}</b><span>With a file</span></div>
+  </div>
+  <button type="button" class="card stat tile" [class.active]="expiry() === 'Expiring'" (click)="setExpiry('Expiring')" [attr.aria-pressed]="expiry() === 'Expiring'">
+    <span class="ic b-warn"><i class="fa-solid fa-hourglass-half"></i></span>
+    <div><b class="tnum">{{ data()?.summary?.expiring ?? '–' }}</b><span>Expiring in 30 days</span></div>
+  </button>
+  <button type="button" class="card stat tile" [class.active]="expiry() === 'Expired'" (click)="setExpiry('Expired')" [attr.aria-pressed]="expiry() === 'Expired'">
+    <span class="ic b-danger"><i class="fa-solid fa-circle-xmark"></i></span>
+    <div><b class="tnum">{{ data()?.summary?.expired ?? '–' }}</b><span>Expired</span></div>
+  </button>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <div class="search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="search" placeholder="Search document no., case number, applicant, property" aria-label="Search documents"
+        [value]="search" (input)="onSearch($any($event.target).value)" />
+    </div>
+    <select aria-label="Filter by document type" [value]="type()" (change)="setType($any($event.target).value)">
+      <option value="">All documents</option>
+      @for (t of types; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+    </select>
+    <label class="mine">
+      <span class="switch"><input type="checkbox" [checked]="mine()" (change)="setMine($any($event.target).checked)" /><span class="track"></span></span>
+      <span class="small">My cases</span>
+    </label>
+    @if (filtered()) { <button class="btn btn-ghost btn-sm" type="button" (click)="clear()"><i class="fa-solid fa-xmark"></i> Clear</button> }
+    @if (loading()) { <i class="fa-solid fa-spinner fa-spin muted spin"></i> }
+  </div>
+
+  @if (error()) {
+    <div class="empty">
+      <i class="fa-solid fa-triangle-exclamation"></i><b>Could not load documents</b><span>{{ error() }}</span>
+      <button class="btn btn-soft btn-sm" type="button" (click)="load()">Try again</button>
+    </div>
+  } @else if (data(); as d) {
+    @if (!items().length) {
+      <div class="empty">
+        <i class="fa-solid fa-folder-open"></i>
+        <b>{{ filtered() ? 'No documents match' : 'No documents yet' }}</b>
+        <span>{{ filtered() ? 'Try a different search or filter.' : 'Open a case and record the documents seen for it.' }}</span>
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="data" [class.dim]="loading()">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th class="hide-sm">Case</th>
+              <th class="hide-md">Seen</th>
+              <th>Valid until</th>
+              <th class="right" aria-label="File"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (i of items(); track i.document.id) {
+              <tr>
+                <td>
+                  <div class="docname">
+                    <span class="ic"><i class="fa-solid" [class]="meta(i.document.type).icon"></i></span>
+                    <div>
+                      <b>{{ name(i.document) }}</b>
+                      <span class="small muted block">{{ facts(i) || '—' }}</span>
+                      <a class="small case phone-only" [routerLink]="['/documents', i.document.assignmentId]">{{ i.caseNumber }} · {{ i.applicantName }}</a>
+                    </div>
+                  </div>
+                </td>
+                <td class="hide-sm">
+                  <a class="case" [routerLink]="['/documents', i.document.assignmentId]">
+                    <span class="bank" [style.background]="i.bankColor">{{ i.bankShortCode }}</span>{{ i.caseNumber }}
+                  </a>
+                  <span class="small muted block">{{ i.applicantName }}</span>
+                </td>
+                <td class="hide-md"><span class="badge" [class]="avail(i.document.availability).badge">{{ avail(i.document.availability).label }}</span></td>
+                <td class="nowrap">
+                  @if (i.document.validUntil) {
+                    <span class="badge" [class]="expiryBadge[i.document.expiryState!]">{{ day(i.document.validUntil) }}</span>
+                  } @else { <span class="muted">—</span> }
+                </td>
+                <td class="right">
+                  @if (i.document.files.length) {
+                    <button class="btn-icon" type="button" [title]="'Open ' + i.document.files[0].fileName" [attr.aria-label]="'Open ' + name(i.document)" (click)="open(i.document.files[0])">
+                      <i class="fa-solid" [class]="i.document.files[0].contentType === 'application/pdf' ? 'fa-file-pdf' : 'fa-file-image'"></i>
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <vp-pager [page]="d.page.page" [pages]="pages()" [range]="range()" (goTo)="goTo($event)" />
+    }
+  } @else {
+    <div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading documents…</span></div>
+  }
+</div>

@@ -27,6 +27,10 @@ the property's saved location. **Photos** (Phase 2): a firm-wide gallery (search
 photos with no location or taken far from the property) and a page per case to choose the report photos and their
 order (drag, or arrows on phones), add photos received later, and download them as a ZIP numbered in report order
 with a photos.csv of times and locations. Camera photos get a date/time/location stamp printed below the picture.
+**Documents** (Phase 2): per case, a checklist of the usual documents for the property type, and each document perused
+with its number, date, issuing office and whether the original was seen, a copy only, or it was not provided (with the
+reason, as reports state). Files (PDF or photo) are optional and keep earlier versions. Documents from earlier cases on
+the same property can be reused. A firm-wide list flags documents expiring within 30 days or already expired.
 Other sidebar modules show which phase builds them.
 
 ## Site inspection rules
@@ -49,6 +53,14 @@ Other sidebar modules show which phase builds them.
   the report instead.
 - Only photos taken with the camera inside the app get a location and the printed stamp. Photos chosen from the
   gallery or uploaded at the office have neither, because the app can't know where or when they were taken.
+
+## Document rules
+
+- Documents can be recorded and changed until the case is Submitted, by anyone with Assignments: Manage (the office), or
+  by the case's valuer or reviewer with Inspections: Manage.
+- "Not provided" needs a reason. Uploading a file to a not-provided document makes it "copy only".
+- A new upload is a new version; older versions stay and can be opened. Removing a document keeps its files in history.
+- Reusing a document from an earlier case of the same property lists the same stored files; nothing is copied.
 
 ## Assignment workflow rules
 
