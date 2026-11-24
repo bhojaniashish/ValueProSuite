@@ -1,5 +1,4 @@
 using System.Text;
-using ClosedXML.Excel;
 using ValuPro.Application.Clients;
 using ValuPro.Domain.Clients;
 
@@ -11,7 +10,7 @@ namespace ValuPro.Infrastructure.Clients;
 /// </summary>
 public static class ClientFileReader
 {
-    public const int MaxRows = 1000;
+    public const int MaxRows = ValuPro.Infrastructure.Import.TabularFile.MaxRows;
 
     public static readonly string[] Columns = ["Type", "Name", "Mobile", "Email", "GSTIN", "PAN", "Address", "City", "State", "Pincode", "Remarks"];
 
@@ -36,12 +35,7 @@ public static class ClientFileReader
         List<List<string>> table;
         try
         {
-            table = Path.GetExtension(fileName).ToLowerInvariant() switch
-            {
-                ".xlsx" => ReadExcel(file),
-                ".csv" or ".txt" => ReadCsv(file),
-                _ => throw new FormatException("Upload a .csv or .xlsx file."),
-            };
+            table = ValuPro.Infrastructure.Import.TabularFile.ReadTable(file, fileName);
         }
         catch (FormatException e) { return ([], e.Message); }
         catch (Exception) { return ([], "The file could not be read. Save it as .xlsx or .csv and try again."); }
@@ -104,52 +98,6 @@ public static class ClientFileReader
         return sb.ToString();
     }
 
-    private static string Normalize(string s) => new(s.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+    private static string Normalize(string s) => ValuPro.Infrastructure.Import.TabularFile.Normalize(s);
 
-    private static List<List<string>> ReadExcel(Stream file)
-    {
-        using var book = new XLWorkbook(file);
-        var sheet = book.Worksheets.First();
-        var used = sheet.RangeUsed();
-        if (used is null) return [];
-        var lastColumn = used.LastColumn().ColumnNumber();
-        return
-        [
-            .. used.Rows().Select(r => Enumerable.Range(1, lastColumn)
-                .Select(c => r.Cell(c).GetFormattedString().Trim()).ToList()),
-        ];
-    }
-
-    /// <summary>RFC 4180 CSV: quoted fields, doubled quotes, commas and line breaks inside quotes.</summary>
-    private static List<List<string>> ReadCsv(Stream file)
-    {
-        using var reader = new StreamReader(file, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        var text = reader.ReadToEnd();
-        var rows = new List<List<string>>();
-        var row = new List<string>();
-        var field = new StringBuilder();
-        var quoted = false;
-
-        for (var i = 0; i < text.Length; i++)
-        {
-            var ch = text[i];
-            if (quoted)
-            {
-                if (ch == '"' && i + 1 < text.Length && text[i + 1] == '"') { field.Append('"'); i++; }
-                else if (ch == '"') quoted = false;
-                else field.Append(ch);
-            }
-            else if (ch == '"') quoted = true;
-            else if (ch == ',') { row.Add(field.ToString()); field.Clear(); }
-            else if (ch is '\n' or '\r')
-            {
-                if (ch == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
-                row.Add(field.ToString()); field.Clear();
-                rows.Add(row); row = [];
-            }
-            else field.Append(ch);
-        }
-        if (field.Length > 0 || row.Count > 0) { row.Add(field.ToString()); rows.Add(row); }
-        return rows;
-    }
 }

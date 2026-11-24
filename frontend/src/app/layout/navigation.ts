@@ -43,7 +43,7 @@ export const NAVIGATION: NavGroup[] = [
       { path: 'clients', label: 'Clients', icon: 'fa-users', permission: Permission.clientsView, phase: 1, ready: true, summary: 'Individuals, builders, bank branches and advocates.' },
       { path: 'banks', label: 'Banks', icon: 'fa-building-columns', permission: Permission.banksView, phase: 1, ready: true, summary: 'Banks, branches, fee rates, valuation rules and questionnaires.' },
       { path: 'properties', label: 'Properties', icon: 'fa-map-location-dot', permission: Permission.propertiesView, phase: 1, ready: true, summary: 'Property register and history across assignments.' },
-      { path: 'rates', label: 'Rate Master', icon: 'fa-table-cells', permission: Permission.ratesView, phase: 2, summary: 'Location, circle, construction rates and depreciation tables.' },
+      { path: 'rates', label: 'Rate Master', icon: 'fa-table-cells', permission: Permission.ratesView, phase: 2, ready: true, summary: 'Location, circle, construction rates and depreciation tables.' },
       { path: 'gis', label: 'GIS Map', icon: 'fa-map', permission: Permission.propertiesView, phase: 5, summary: 'Property map, clustering and nearby comparables.' },
     ],
   },

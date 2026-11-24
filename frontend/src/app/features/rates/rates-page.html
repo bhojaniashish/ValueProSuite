@@ -1,0 +1,249 @@
+<div class="page-head">
+  <div>
+    <h2>Rate Master</h2>
+    <p>Market, circle / Jantri and construction rates with the dates they apply from, and depreciation tables</p>
+  </div>
+  @if (canManage()) {
+    <div class="actions">
+      @if (importKind(); as k) {
+        <button class="btn btn-ghost" type="button" (click)="importing.set(k)"><i class="fa-solid fa-file-import"></i> Import</button>
+      }
+      <button class="btn btn-pri" type="button" (click)="add()"><i class="fa-solid fa-plus"></i> {{ tab() === 'depreciation' ? 'Add Rule' : 'Add Rate' }}</button>
+    </div>
+  }
+</div>
+
+<div class="card">
+  <vp-tabs [tabs]="tabs()" [value]="tab()" (valueChange)="onTab($event)" />
+
+  @if (active(); as t) {
+    <div class="toolbar">
+      <div class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" [placeholder]="tab() === 'construction' ? 'Search construction type' : 'Search locality, city, state'" aria-label="Search rates"
+          [value]="t.search()" (input)="t.setSearch($any($event.target).value)" />
+      </div>
+      <label class="current">
+        <span class="switch"><input type="checkbox" [checked]="currentOnly()" (change)="setCurrentOnly($any($event.target).checked)" /><span class="track"></span></span>
+        <span class="small">Current rates only</span>
+      </label>
+      @if (loading()) { <i class="fa-solid fa-spinner fa-spin muted spin"></i> }
+      <button class="btn btn-ghost btn-sm export" type="button" (click)="export()" [disabled]="!t.total()"><i class="fa-solid fa-file-csv"></i> Export</button>
+    </div>
+  }
+
+  @if (loadError()) {
+    <div class="empty">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <b>Could not load rates</b>
+      <span>{{ loadError() }}</span>
+      <button class="btn btn-soft btn-sm" type="button" (click)="load()">Try again</button>
+    </div>
+  } @else {
+    @switch (tab()) {
+      @case ('location') {
+        @if (!tL.total()) {
+          <div class="empty">
+            <i class="fa-solid fa-location-dot"></i>
+            <b>{{ tL.search() ? 'No rates match' : 'No location rates yet' }}</b>
+            <span>{{ tL.search() ? 'Try a different search.' : 'Add market rates per locality, or import them from Excel.' }}</span>
+          </div>
+        } @else {
+          <div class="table-wrap">
+            <table class="data" [class.dim]="loading()">
+              <thead>
+                <tr>
+                  <th vpSort="locality" [table]="$any(tL)">Locality</th>
+                  <th vpSort="city" [table]="$any(tL)" class="hide-sm">City</th>
+                  <th vpSort="zone" [table]="$any(tL)" class="hide-md">Zone</th>
+                  <th vpSort="minRate" [table]="$any(tL)" class="right">Market / sq.ft</th>
+                  <th class="right">Circle / sq.m</th>
+                  <th vpSort="effectiveFrom" [table]="$any(tL)">From</th>
+                  @if (canManage()) { <th class="right" aria-label="Actions"></th> }
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of tL.view(); track r.id) {
+                  <tr [class.old]="!r.isCurrent">
+                    <td>
+                      <b>{{ r.locality }}</b>
+                      <span class="sub small muted phone-only">{{ r.city }}{{ r.state ? ', ' + r.state : '' }}</span>
+                      @if (r.source) { <span class="sub small muted">{{ r.source }}</span> }
+                    </td>
+                    <td class="hide-sm">{{ r.city }}<span class="sub small muted">{{ r.state }}</span></td>
+                    <td class="hide-md"><span class="badge" [class]="zone(r.zone).badge">{{ zone(r.zone).label }}</span></td>
+                    <td class="right tnum" data-label="Market / sq.ft"><b>{{ inr(r.minRate) }}</b>@if (r.maxRate !== r.minRate) { – <b>{{ inr(r.maxRate) }}</b> }</td>
+                    <td class="right tnum" data-label="Circle / sq.m">
+                      @if (r.circleRatePerSqM != null) { {{ inr(r.circleRatePerSqM) }}<span class="sub small muted">{{ scheme(r.circleScheme) }}</span> }
+                      @else { <span class="muted small">Not set</span> }
+                    </td>
+                    <td class="nowrap" data-label="From">{{ day(r.effectiveFrom) }}@if (!r.isCurrent) { <span class="badge b-gray hist">History</span> }</td>
+                    @if (canManage()) {
+                      <td class="right nowrap acts">
+                        <button class="btn-icon" type="button" title="Edit" [attr.aria-label]="'Edit ' + r.locality" (click)="editing.set({ kind: 'location', rate: r })"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn-icon danger" type="button" title="Remove" [attr.aria-label]="'Remove ' + r.locality" (click)="deleting.set({ kind: 'location', id: r.id, label: r.locality + ', ' + r.city })"><i class="fa-solid fa-trash-can"></i></button>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <vp-pager [page]="tL.page()" [pages]="tL.pages()" [range]="tL.range()" (goTo)="tL.goTo($event)" />
+        }
+      }
+
+      @case ('construction') {
+        @if (!tK.total()) {
+          <div class="empty">
+            <i class="fa-solid fa-trowel-bricks"></i>
+            <b>{{ tK.search() ? 'No rates match' : 'No construction rates yet' }}</b>
+            <span>{{ tK.search() ? 'Try a different search.' : 'Add CPWD, PWD and bank rates for each type of construction.' }}</span>
+          </div>
+        } @else {
+          <div class="table-wrap">
+            <table class="data" [class.dim]="loading()">
+              <thead>
+                <tr>
+                  <th vpSort="constructionType" [table]="$any(tK)">Construction Type</th>
+                  <th vpSort="cpwdRate" [table]="$any(tK)" class="right">CPWD</th>
+                  <th vpSort="pwdRate" [table]="$any(tK)" class="right">PWD</th>
+                  <th vpSort="bankRate" [table]="$any(tK)" class="right">Bank</th>
+                  <th vpSort="effectiveFrom" [table]="$any(tK)">From</th>
+                  @if (canManage()) { <th class="right" aria-label="Actions"></th> }
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of tK.view(); track r.id) {
+                  <tr [class.old]="!r.isCurrent">
+                    <td><b>{{ r.constructionType }}</b><span class="sub small muted">{{ unit(r.unit) }}@if (r.remarks) { · {{ r.remarks }} }</span></td>
+                    <td class="right tnum" data-label="CPWD">{{ inr(r.cpwdRate) }}</td>
+                    <td class="right tnum" data-label="PWD">{{ inr(r.pwdRate) }}</td>
+                    <td class="right tnum" data-label="Bank"><b>{{ inr(r.bankRate) }}</b></td>
+                    <td class="nowrap" data-label="From">{{ day(r.effectiveFrom) }}@if (!r.isCurrent) { <span class="badge b-gray hist">History</span> }</td>
+                    @if (canManage()) {
+                      <td class="right nowrap acts">
+                        <button class="btn-icon" type="button" title="Edit" [attr.aria-label]="'Edit ' + r.constructionType" (click)="editing.set({ kind: 'construction', rate: r })"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn-icon danger" type="button" title="Remove" [attr.aria-label]="'Remove ' + r.constructionType" (click)="deleting.set({ kind: 'construction', id: r.id, label: r.constructionType })"><i class="fa-solid fa-trash-can"></i></button>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <vp-pager [page]="tK.page()" [pages]="tK.pages()" [range]="tK.range()" (goTo)="tK.goTo($event)" />
+        }
+      }
+
+      @case ('circle') {
+        @if (!tC.total()) {
+          <div class="empty">
+            <i class="fa-solid fa-landmark"></i>
+            <b>{{ tC.search() ? 'No rates match' : 'No circle rates yet' }}</b>
+            <span>{{ tC.search() ? 'Try a different search.' : 'Add government rates (Jantri, Ready Reckoner, guideline value) per locality.' }}</span>
+          </div>
+        } @else {
+          <div class="table-wrap">
+            <table class="data" [class.dim]="loading()">
+              <thead>
+                <tr>
+                  <th vpSort="locality" [table]="$any(tC)">Locality / Village</th>
+                  <th vpSort="scheme" [table]="$any(tC)" class="hide-md">Scheme</th>
+                  <th vpSort="residential" [table]="$any(tC)" class="right">Residential</th>
+                  <th vpSort="commercial" [table]="$any(tC)" class="right">Commercial</th>
+                  <th vpSort="openLand" [table]="$any(tC)" class="right">Open Land</th>
+                  <th vpSort="effectiveFrom" [table]="$any(tC)">From</th>
+                  @if (canManage()) { <th class="right" aria-label="Actions"></th> }
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of tC.view(); track r.id) {
+                  <tr [class.old]="!r.isCurrent">
+                    <td><b>{{ r.locality }}</b><span class="sub small muted">{{ r.city }}, {{ r.state }}@if (r.reference) { · {{ r.reference }} }</span></td>
+                    <td class="hide-md"><span class="badge b-info">{{ scheme(r.scheme) }}</span></td>
+                    <td class="right tnum" data-label="Residential / sq.m"><b>{{ inr(r.residential) }}</b></td>
+                    <td class="right tnum" data-label="Commercial">{{ inr(r.commercial) }}</td>
+                    <td class="right tnum" data-label="Open land">{{ inr(r.openLand) }}</td>
+                    <td class="nowrap" data-label="From">{{ day(r.effectiveFrom) }}@if (!r.isCurrent) { <span class="badge b-gray hist">History</span> }</td>
+                    @if (canManage()) {
+                      <td class="right nowrap acts">
+                        <button class="btn-icon" type="button" title="Edit" [attr.aria-label]="'Edit ' + r.locality" (click)="editing.set({ kind: 'circle', rate: r })"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn-icon danger" type="button" title="Remove" [attr.aria-label]="'Remove ' + r.locality" (click)="deleting.set({ kind: 'circle', id: r.id, label: r.locality + ', ' + r.city })"><i class="fa-solid fa-trash-can"></i></button>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="small muted foot">Rates per sq.m, as published by the state.</p>
+          <vp-pager [page]="tC.page()" [pages]="tC.pages()" [range]="tC.range()" (goTo)="tC.goTo($event)" />
+        }
+      }
+
+      @case ('depreciation') {
+        @if (!depreciation().length) {
+          <div class="empty">
+            <i class="fa-solid fa-chart-line"></i>
+            <b>No depreciation rules yet</b>
+            <span>Start with the usual structure types (RCC, load bearing, steel shed, temporary) and adjust them.</span>
+            @if (canManage()) {
+              <button class="btn btn-soft btn-sm" type="button" [disabled]="busy()" (click)="addStandard()"><i class="fa-solid fa-wand-magic-sparkles"></i> Add standard structure types</button>
+            }
+          </div>
+        } @else {
+          <div class="rules">
+            @for (d of depreciation(); track d.id) {
+              <div class="rule">
+                <div class="rule-head">
+                  <div>
+                    <b>{{ d.structureType }}</b>
+                    <span class="small muted">{{ d.totalLifeYears }} years life · {{ d.salvagePercent }}% salvage · {{ method(d.method) }}</span>
+                  </div>
+                  @if (canManage()) {
+                    <div class="nowrap">
+                      <button class="btn-icon" type="button" title="Edit" [attr.aria-label]="'Edit ' + d.structureType" (click)="editing.set({ kind: 'depreciation', rate: d })"><i class="fa-solid fa-pen"></i></button>
+                      <button class="btn-icon danger" type="button" title="Remove" [attr.aria-label]="'Remove ' + d.structureType" (click)="deleting.set({ kind: 'depreciation', id: d.id, label: d.structureType })"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                  }
+                </div>
+                <div class="bands">
+                  @for (b of d.bands; track b.label) {
+                    <div class="band">
+                      <span class="small muted">{{ b.label }}</span>
+                      <b class="tnum">{{ b.percent }}%</b>
+                      <span class="bar"><span [style.width.%]="b.percent"></span></span>
+                    </div>
+                  }
+                </div>
+                @if (d.remarks) { <p class="small muted rem">{{ d.remarks }}</p> }
+              </div>
+            }
+          </div>
+          <p class="small muted foot"><i class="fa-solid fa-circle-info"></i> Each band shows the total depreciation at the end of that age range.</p>
+        }
+      }
+    }
+  }
+</div>
+
+@if (editing(); as e) {
+  <vp-rate-form-dialog [kind]="e.kind" [rate]="$any(e.rate)" [cities]="filters()?.cities ?? []" (saved)="onSaved()" (closed)="editing.set(null)" />
+}
+
+@if (importing(); as k) {
+  <vp-rate-import-dialog [kind]="k" (imported)="onImported($event)" (closed)="importing.set(null)" />
+}
+
+@if (deleting(); as d) {
+  <vp-dialog [title]="d.kind === 'depreciation' ? 'Remove this rule?' : 'Remove this rate?'" [subtitle]="d.label" icon="fa-trash-can" tone="b-danger" size="sm" (closed)="deleting.set(null)">
+    <p class="confirm">It will no longer be used for new valuations. Valuations already done keep the figures they used.</p>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="deleting.set(null)">Cancel</button>
+      <button class="btn btn-danger" type="button" [disabled]="busy()" (click)="remove()">
+        <i class="fa-solid" [class]="busy() ? 'fa-spinner fa-spin' : 'fa-trash-can'"></i> Remove
+      </button>
+    </ng-container>
+  </vp-dialog>
+}

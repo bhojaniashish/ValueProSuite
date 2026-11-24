@@ -1,0 +1,145 @@
+<vp-dialog [title]="title()" subtitle="Rate Master" icon="fa-table-cells" (closed)="closed.emit()">
+  <form id="rateForm" class="form-grid" (ngSubmit)="save()" novalidate>
+    @if (error()) { <div class="alert-inline danger col-2"><i class="fa-solid fa-circle-exclamation"></i> {{ error() }}</div> }
+
+    @switch (kind()) {
+      @case ('location') {
+        <div class="fld" [class.invalid]="problem('locality')">
+          <label for="r-loc">Locality <span class="req">*</span></label>
+          <input id="r-loc" name="locality" [(ngModel)]="m.locality" placeholder="Vesu" />
+          @if (problem('locality')) { <span class="err">{{ problem('locality') }}</span> }
+        </div>
+        <div class="fld" [class.invalid]="problem('city')">
+          <label for="r-city">City <span class="req">*</span></label>
+          <input id="r-city" name="city" [(ngModel)]="m.city" placeholder="Surat" list="r-cities" />
+          <datalist id="r-cities">@for (c of cities(); track c) { <option [value]="c"></option> }</datalist>
+          @if (problem('city')) { <span class="err">{{ problem('city') }}</span> }
+        </div>
+        <div class="fld">
+          <label for="r-state">State</label>
+          <select id="r-state" name="state" [(ngModel)]="m.state"><option [ngValue]="null">Select state</option>@for (s of states; track s) { <option [ngValue]="s">{{ s }}</option> }</select>
+        </div>
+        <div class="fld">
+          <label for="r-zone">Zone</label>
+          <select id="r-zone" name="zone" [(ngModel)]="m.zone">@for (o of zones; track o.value) { <option [ngValue]="o.value">{{ o.label }}</option> }</select>
+        </div>
+        <div class="fld" [class.invalid]="problem('minRate')">
+          <label for="r-min">Market Rate From (₹ / sq.ft) <span class="req">*</span></label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="r-min" name="minRate" [(ngModel)]="m.minRate" /></div>
+          @if (problem('minRate')) { <span class="err">{{ problem('minRate') }}</span> }
+        </div>
+        <div class="fld" [class.invalid]="problem('maxRate')">
+          <label for="r-max">Market Rate To (₹ / sq.ft)</label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="r-max" name="maxRate" [(ngModel)]="m.maxRate" /></div>
+          @if (problem('maxRate')) { <span class="err">{{ problem('maxRate') }}</span> } @else { <span class="hint">Leave empty for a single rate.</span> }
+        </div>
+      }
+
+      @case ('circle') {
+        <div class="fld" [class.invalid]="problem('state')">
+          <label for="c-state">State <span class="req">*</span></label>
+          <select id="c-state" name="state" [(ngModel)]="m.state" (ngModelChange)="onState($event)"><option [ngValue]="null">Select state</option>@for (s of states; track s) { <option [ngValue]="s">{{ s }}</option> }</select>
+          @if (problem('state')) { <span class="err">{{ problem('state') }}</span> }
+        </div>
+        <div class="fld">
+          <label for="c-scheme">Scheme</label>
+          <select id="c-scheme" name="scheme" [(ngModel)]="m.scheme">@for (s of schemes; track s.value) { <option [ngValue]="s.value">{{ s.label }} ({{ s.hint }})</option> }</select>
+        </div>
+        <div class="fld" [class.invalid]="problem('city')">
+          <label for="c-city">City / District <span class="req">*</span></label>
+          <input id="c-city" name="city" [(ngModel)]="m.city" placeholder="Surat" list="c-cities" />
+          <datalist id="c-cities">@for (c of cities(); track c) { <option [value]="c"></option> }</datalist>
+          @if (problem('city')) { <span class="err">{{ problem('city') }}</span> }
+        </div>
+        <div class="fld" [class.invalid]="problem('locality')">
+          <label for="c-loc">Locality / Village <span class="req">*</span></label>
+          <input id="c-loc" name="locality" [(ngModel)]="m.locality" placeholder="Vesu" />
+          @if (problem('locality')) { <span class="err">{{ problem('locality') }}</span> }
+        </div>
+        <div class="fld" [class.invalid]="problem('residential')">
+          <label for="c-res">Residential (₹ / sq.m)</label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="c-res" name="residential" [(ngModel)]="m.residential" /></div>
+          @if (problem('residential')) { <span class="err">{{ problem('residential') }}</span> }
+        </div>
+        <div class="fld">
+          <label for="c-com">Commercial (₹ / sq.m)</label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="c-com" name="commercial" [(ngModel)]="m.commercial" /></div>
+        </div>
+        <div class="fld">
+          <label for="c-land">Open Land (₹ / sq.m)</label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="c-land" name="openLand" [(ngModel)]="m.openLand" /></div>
+        </div>
+      }
+
+      @case ('construction') {
+        <div class="fld col-2" [class.invalid]="problem('constructionType')">
+          <label for="k-type">Construction Type <span class="req">*</span></label>
+          <input id="k-type" name="constructionType" [(ngModel)]="m.constructionType" placeholder="RCC Framed - Standard" />
+          @if (problem('constructionType')) { <span class="err">{{ problem('constructionType') }}</span> }
+        </div>
+        <div class="fld">
+          <label for="k-unit">Unit</label>
+          <select id="k-unit" name="unit" [(ngModel)]="m.unit">@for (o of units; track o.value) { <option [ngValue]="o.value">{{ o.label }}</option> }</select>
+        </div>
+        <div class="fld" [class.invalid]="problem('cpwdRate')">
+          <label for="k-cpwd">CPWD Rate (₹)</label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="k-cpwd" name="cpwdRate" [(ngModel)]="m.cpwdRate" /></div>
+          @if (problem('cpwdRate')) { <span class="err">{{ problem('cpwdRate') }}</span> }
+        </div>
+        <div class="fld">
+          <label for="k-pwd">PWD Rate (₹)</label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="k-pwd" name="pwdRate" [(ngModel)]="m.pwdRate" /></div>
+        </div>
+        <div class="fld">
+          <label for="k-bank">Bank Rate (₹)</label>
+          <div class="fld-pre"><span>₹</span><input vpAmount id="k-bank" name="bankRate" [(ngModel)]="m.bankRate" /></div>
+        </div>
+      }
+
+      @case ('depreciation') {
+        <div class="fld col-2" [class.invalid]="problem('structureType')">
+          <label for="d-type">Structure Type <span class="req">*</span></label>
+          <input id="d-type" name="structureType" [(ngModel)]="m.structureType" placeholder="RCC Framed Structure" />
+          @if (problem('structureType')) { <span class="err">{{ problem('structureType') }}</span> }
+        </div>
+        <div class="fld" [class.invalid]="problem('totalLifeYears')">
+          <label for="d-life">Total Life (years)</label>
+          <input id="d-life" name="totalLifeYears" type="number" inputmode="numeric" min="5" max="150" step="1" [(ngModel)]="m.totalLifeYears" />
+          @if (problem('totalLifeYears')) { <span class="err">{{ problem('totalLifeYears') }}</span> }
+        </div>
+        <div class="fld" [class.invalid]="problem('salvagePercent')">
+          <label for="d-salv">Salvage Value</label>
+          <div class="fld-pre fld-suf"><input vpAmount [decimals]="2" id="d-salv" name="salvagePercent" [(ngModel)]="m.salvagePercent" /><span>%</span></div>
+          @if (problem('salvagePercent')) { <span class="err">{{ problem('salvagePercent') }}</span> } @else { <span class="hint">Value left at the end of the building's life.</span> }
+        </div>
+        <div class="fld col-2">
+          <label for="d-method">Method</label>
+          <select id="d-method" name="method" [(ngModel)]="m.method">@for (o of methods; track o.value) { <option [ngValue]="o.value">{{ o.label }}</option> }</select>
+        </div>
+        <p class="note col-2"><i class="fa-solid fa-circle-info"></i>
+          Straight line: equal depreciation each year until only the salvage value is left.
+          Written-down value: a fixed % of the remaining value each year, reaching the salvage value at the end of the life.
+          The age-band table is worked out from these figures.</p>
+      }
+    }
+
+    @if (kind() !== 'depreciation') {
+      <div class="fld" [class.invalid]="problem('effectiveFrom')">
+        <label for="r-date">Effective From <span class="req">*</span></label>
+        <input id="r-date" name="effectiveFrom" type="date" [(ngModel)]="m.effectiveFrom" />
+        @if (problem('effectiveFrom')) { <span class="err">{{ problem('effectiveFrom') }}</span> } @else { <span class="hint">A later date keeps this one as history.</span> }
+      </div>
+    }
+    <div class="fld" [class.col-2]="kind() === 'depreciation' || kind() === 'construction'">
+      <label for="r-note">{{ kind() === 'circle' ? 'Reference / Notification' : kind() === 'location' ? 'Source' : 'Remarks' }}</label>
+      <input id="r-note" name="note" [(ngModel)]="m.note" [placeholder]="kind() === 'circle' ? 'Jantri 2026' : kind() === 'location' ? 'Broker survey, Apr 2026' : ''" />
+    </div>
+  </form>
+
+  <ng-container footer>
+    <button class="btn btn-ghost" type="button" (click)="closed.emit()">Cancel</button>
+    <button class="btn btn-pri" type="submit" form="rateForm" [disabled]="busy()">
+      <i class="fa-solid" [class]="busy() ? 'fa-spinner fa-spin' : 'fa-check'"></i> Save
+    </button>
+  </ng-container>
+</vp-dialog>

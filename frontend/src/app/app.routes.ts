@@ -11,6 +11,7 @@ const BUILT: Record<string, Routes[number]['loadComponent']> = {
   banks: () => import('./features/banks/banks-page').then((m) => m.BanksPage),
   properties: () => import('./features/properties/properties-page').then((m) => m.PropertiesPage),
   assignments: () => import('./features/assignments/assignments-page').then((m) => m.AssignmentsPage),
+  rates: () => import('./features/rates/rates-page').then((m) => m.RatesPage),
 };
 
 const moduleRoutes: Routes = NAVIGATION.flatMap((g) => g.items)

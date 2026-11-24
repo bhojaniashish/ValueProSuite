@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 1 in progress.** Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 2 in progress** (Phase 1 complete). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -16,7 +16,11 @@ table, and a dynamic questionnaire per bank. **Properties**: register with surve
 usage and GPS ("Use my location" on phones), plus each property's valuation history. **Assignments**: numbers
 like VAL/2026/0001 (prefix from Settings, per-year counter), bank/branch, applicant and property linked to the
 masters or typed, valuer and reviewer, the 7-stage workflow with a timeline, a stage pipeline, list and Kanban
-board views. Other sidebar modules show which phase builds them.
+board views. **Rate Master** (Phase 2): location (market) rates per locality and zone, circle / Jantri / Ready Reckoner
+rates, construction rates (CPWD / PWD / bank) and depreciation rules (straight line or written-down value, with an
+age-band table). Rates carry an "effective from" date: a newer date keeps the old rate as history, and the current
+rate is the latest one already in force. Rates import from CSV or Excel with the same row-by-row check. Other
+sidebar modules show which phase builds them.
 
 ## Assignment workflow rules
 
@@ -87,6 +91,11 @@ npm --prefix frontend test -- --watch=false
   firm, never reused, safe when two people save at once.
 - **Permissions, not roles, guard features.** Use `[HasPermission(Permissions.Clients.Manage)]` on the API and `data: { permission }` on routes. Roles map to permissions via role claims (the role × module matrix), so admins can change access without a deployment.
 - **Files** go through `IFileStorage`; paths are `tenants/{tenantId}/…` and read links are short-lived SAS URLs.
+- **Own UI components, no UI kit.** The frontend uses its own design (from the prototype) and shared pieces in
+  `src/app/shared` (`LocalTable` for in-browser search/sort/paging, `th[vpSort]`, `vp-pager`, `vp-tabs`,
+  `input[vpAmount]` for ₹ amounts with Indian grouping, plus the dialog, toast and typeahead in `core/ui`).
+  PrimeNG was tried and dropped: from v22 it needs a commercial PrimeUI licence key. Add MIT libraries only for heavy
+  widgets (Angular CDK, Chart.js, FullCalendar, Leaflet, TipTap).
 - **Migrations:** `dotnet ef migrations add <Name> -p src/ValuPro.Infrastructure -s src/ValuPro.Api -o Persistence/Migrations` (run in `backend`). CI fails if the model has changes without a migration.
 
 ## Azure
