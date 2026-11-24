@@ -9,7 +9,7 @@ import { TabItem, Tabs } from '../../shared/tabs';
 import { shortDate, statusMeta } from '../assignments/assignments.api';
 import { Drafts } from './field-tools';
 import { InspectionListItem, InspectionsApi } from './inspections.api';
-import { PhotoQueue } from './photo-queue';
+import { PhotoQueue } from '../photos/photo-queue';
 
 /** Site visits: the valuer's list of properties to inspect, ordered by visit time. */
 @Component({

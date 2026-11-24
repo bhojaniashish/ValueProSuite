@@ -23,7 +23,11 @@ rate is the latest one already in force. Rates import from CSV or Excel with the
 **Site Inspection** (Phase 2): a phone-first, step-by-step site visit form (visit and person met, locality, boundaries
 as per documents vs at site, occupancy, building and specifications, measurements, approvals and deviations, the bank's
 own questions, tagged photos, remarks). It captures the location at site and flags it when it is more than 300 m from
-the property's saved location. Other sidebar modules show which phase builds them.
+the property's saved location. **Photos** (Phase 2): a firm-wide gallery (search, type, dates, "needs a look" for site
+photos with no location or taken far from the property) and a page per case to choose the report photos and their
+order (drag, or arrows on phones), add photos received later, and download them as a ZIP numbered in report order
+with a photos.csv of times and locations. Camera photos get a date/time/location stamp printed below the picture.
+Other sidebar modules show which phase builds them.
 
 ## Site inspection rules
 
@@ -36,6 +40,15 @@ the property's saved location. Other sidebar modules show which phase builds the
 - Works with weak signal: the form is kept on the phone (localStorage) and photos wait in IndexedDB until they upload.
   Photos are resized on the phone (1600 px JPEG plus a 360 px thumbnail) and a retried upload is not saved twice.
 - Recorded details are stored as one JSON document (`Inspections.Data`), so fields can be added as banks' formats arrive.
+
+## Photo rules
+
+- Photos can be added, re-tagged, captioned, reordered and chosen for the report until the case is Submitted, by the
+  case's valuer or reviewer, or anyone with Assignments: Manage (plus Inspections: Manage).
+- Once the inspection is submitted, its photos cannot be deleted (they are the record of the visit); leave them out of
+  the report instead.
+- Only photos taken with the camera inside the app get a location and the printed stamp. Photos chosen from the
+  gallery or uploaded at the office have neither, because the app can't know where or when they were taken.
 
 ## Assignment workflow rules
 

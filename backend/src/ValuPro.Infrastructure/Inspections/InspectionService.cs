@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ValuPro.Application.Abstractions;
 using ValuPro.Application.Common;
 using ValuPro.Application.Inspections;
+using ValuPro.Application.Photos;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Banks;
 using ValuPro.Domain.Inspections;
@@ -9,15 +10,12 @@ using ValuPro.Domain.Properties;
 using ValuPro.Domain.Rates;
 using ValuPro.Domain.Security;
 using ValuPro.Infrastructure.Persistence;
+using ValuPro.Infrastructure.Photos;
 
 namespace ValuPro.Infrastructure.Inspections;
 
-public sealed class InspectionService(AppDbContext db, ICurrentUser me, IFileStorage files, TimeProvider clock) : IInspectionService
+public sealed class InspectionService(AppDbContext db, ICurrentUser me, TimeProvider clock) : IInspectionService
 {
-    public const long MaxPhotoBytes = 8 * 1024 * 1024;
-    public const long MaxThumbBytes = 512 * 1024;
-    private static readonly string[] ImageTypes = ["image/jpeg", "image/png", "image/webp"];
-
     // ---------------- case lookup ----------------
 
     private sealed class CaseRow
@@ -337,92 +335,6 @@ public sealed class InspectionService(AppDbContext db, ICurrentUser me, IFileSto
     // ---------------- photos ----------------
 
     private async Task<IReadOnlyList<PhotoItem>> PhotosAsync(Guid assignmentId, CancellationToken ct) =>
-        await db.Set<AssignmentPhoto>().Where(p => p.AssignmentId == assignmentId)
-            .OrderBy(p => p.SortOrder).ThenBy(p => p.TakenAt)
-            .Select(p => new PhotoItem(p.Id, p.ClientKey, p.Tag, p.Caption, p.Width, p.Height, p.SizeBytes, p.Latitude, p.Longitude, p.TakenAt, p.TakenByName))
-            .ToListAsync(ct);
-
-    private static PhotoItem Item(AssignmentPhoto p) =>
-        new(p.Id, p.ClientKey, p.Tag, p.Caption, p.Width, p.Height, p.SizeBytes, p.Latitude, p.Longitude, p.TakenAt, p.TakenByName);
-
-    public async Task<Result<PhotoItem>> UploadPhotoAsync(
-        Guid assignmentId, PhotoUpload meta, Stream image, Stream thumb, string contentType, long size, CancellationToken ct = default)
-    {
-        var a = await db.Set<Assignment>().FirstOrDefaultAsync(x => x.Id == assignmentId, ct);
-        if (a is null) return Error.NotFound("Assignment not found.");
-        if (ReadOnlyReason(a) is { } reason) return Error.Forbidden(reason);
-
-        var existing = await db.Set<AssignmentPhoto>().FirstOrDefaultAsync(p => p.AssignmentId == assignmentId && p.ClientKey == meta.ClientKey, ct);
-        if (existing is not null) return Item(existing); // the phone retried an upload that already arrived
-
-        if (!ImageTypes.Contains(contentType)) return Error.Validation("Photos must be JPEG, PNG or WebP.", "file");
-        if (size <= 0 || size > MaxPhotoBytes) return Error.Validation("Photos can be up to 8 MB.", "file");
-        if (!Enum.IsDefined(meta.Tag)) return Error.Validation("Choose what the photo shows.", "tag");
-
-        var ext = contentType switch { "image/png" => ".png", "image/webp" => ".webp", _ => ".jpg" };
-        var folder = $"assignments/{assignmentId:N}/photos";
-        var blob = await files.UploadAsync(folder, $"{meta.ClientKey:N}{ext}", image, contentType, ct);
-        var thumbPath = await files.UploadAsync(folder, $"{meta.ClientKey:N}-thumb.jpg", thumb, "image/jpeg", ct);
-
-        var now = clock.GetUtcNow();
-        var order = await db.Set<AssignmentPhoto>().Where(p => p.AssignmentId == assignmentId).Select(p => (int?)p.SortOrder).MaxAsync(ct) ?? 0;
-        var photo = new AssignmentPhoto
-        {
-            AssignmentId = assignmentId,
-            ClientKey = meta.ClientKey,
-            Tag = meta.Tag,
-            Caption = string.IsNullOrWhiteSpace(meta.Caption) ? null : meta.Caption.Trim()[..Math.Min(200, meta.Caption.Trim().Length)],
-            BlobPath = blob,
-            ThumbPath = thumbPath,
-            ContentType = contentType,
-            SizeBytes = size,
-            Width = meta.Width,
-            Height = meta.Height,
-            Latitude = meta.Latitude is { } lat and >= -90 and <= 90 ? Math.Round(lat, 6) : null,
-            Longitude = meta.Longitude is { } lng and >= -180 and <= 180 ? Math.Round(lng, 6) : null,
-            TakenAt = meta.TakenAt is { } t && t <= now.AddMinutes(5) ? t : now,
-            TakenByName = me.Name ?? "Unknown",
-            SortOrder = order + 1,
-        };
-        db.Add(photo);
-        await db.SaveChangesAsync(ct);
-        return Item(photo);
-    }
-
-    public async Task<Result<PhotoItem>> UpdatePhotoAsync(Guid photoId, UpdatePhotoRequest r, CancellationToken ct = default)
-    {
-        var (photo, error) = await EditablePhotoAsync(photoId, ct);
-        if (error is not null) return error;
-        photo!.Tag = r.Tag;
-        photo.Caption = string.IsNullOrWhiteSpace(r.Caption) ? null : r.Caption.Trim();
-        await db.SaveChangesAsync(ct);
-        return Item(photo);
-    }
-
-    public async Task<Result<bool>> DeletePhotoAsync(Guid photoId, CancellationToken ct = default)
-    {
-        var (photo, error) = await EditablePhotoAsync(photoId, ct);
-        if (error is not null) return error;
-        db.Remove(photo!); // soft delete; the file is kept with the case's history
-        await db.SaveChangesAsync(ct);
-        return true;
-    }
-
-    private async Task<(AssignmentPhoto?, Error?)> EditablePhotoAsync(Guid photoId, CancellationToken ct)
-    {
-        var photo = await db.Set<AssignmentPhoto>().FirstOrDefaultAsync(p => p.Id == photoId, ct);
-        if (photo is null) return (null, Error.NotFound("Photo not found."));
-        var a = await db.Set<Assignment>().FirstAsync(x => x.Id == photo.AssignmentId, ct);
-        return ReadOnlyReason(a) is { } reason ? (null, Error.Forbidden(reason)) : (photo, null);
-    }
-
-    public async Task<Result<PhotoFile>> OpenPhotoAsync(Guid photoId, bool thumb, CancellationToken ct = default)
-    {
-        var photo = await db.Set<AssignmentPhoto>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == photoId, ct);
-        if (photo is null) return Error.NotFound("Photo not found.");
-        var stream = await files.OpenReadAsync(thumb ? photo.ThumbPath : photo.BlobPath, ct);
-        return stream is null
-            ? Error.NotFound("The photo file is missing.")
-            : new PhotoFile(stream, thumb ? "image/jpeg" : photo.ContentType);
-    }
+        (await db.Set<AssignmentPhoto>().Where(p => p.AssignmentId == assignmentId)
+            .OrderBy(p => p.SortOrder).ThenBy(p => p.TakenAt).ToListAsync(ct)).Select(PhotoService.Item).ToList();
 }

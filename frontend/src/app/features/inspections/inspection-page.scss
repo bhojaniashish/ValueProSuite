@@ -518,41 +518,7 @@
   display: none;
 }
 
-// dialogs
-.tag-pick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  .tp {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border: 1px solid var(--line);
-    border-radius: 99px;
-    font-size: 13px;
-    color: var(--ink-2);
-    &.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 600; }
-  }
-  &.small-pick .tp { padding: 6px 10px; font-size: 12px; }
-}
-.viewer {
-  border-radius: 10px;
-  overflow: hidden;
-  background: #111;
-  vp-auth-img { height: auto; min-height: 200px; max-height: 60vh; background: #111; }
-  ::ng-deep vp-auth-img img,
-  img { width: 100%; max-height: 60vh; object-fit: contain; }
-}
-.meta {
-  margin: 10px 0;
-  a { color: var(--brand); }
-}
 .confirm {
   margin: 0;
   line-height: 1.55;
-}
-.danger-text {
-  color: var(--danger);
-  margin-right: auto;
 }

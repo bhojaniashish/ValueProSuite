@@ -430,7 +430,7 @@
                         @if (list.length) {
                           <div class="thumbs">
                             @for (p of list; track p.key) {
-                              <button type="button" class="thumb" (click)="viewing.set(p)" [attr.aria-label]="'Open ' + t.label + ' photo'">
+                              <button type="button" class="thumb" (click)="open(p)" [attr.aria-label]="'Open ' + t.label + ' photo'">
                                 @if (p.server) { <vp-auth-img [photoId]="p.server.id" [alt]="t.label" /> } @else { <img [src]="p.localUrl" [alt]="t.label" /> }
                                 @if (p.queued) {
                                   <span class="up" [class.bad]="p.queued.error">
@@ -522,58 +522,15 @@
 
 <!-- What does the photo show? -->
 @if (tagging(); as t) {
-  <vp-dialog [title]="t.files.length === 1 ? 'What does this photo show?' : 'What do these ' + t.files.length + ' photos show?'" icon="fa-camera" (closed)="tagging.set(null)">
-    <div class="tag-pick">
-      @for (x of photoTags; track x.value) {
-        <button type="button" class="tp" [class.on]="t.tag === x.value" (click)="tagging.set({ files: t.files, tag: x.value, caption: t.caption })">
-          <i class="fa-solid" [class]="x.icon"></i> {{ x.label }}
-        </button>
-      }
-    </div>
-    <div class="fld top">
-      <label for="t-cap">Caption <span class="hint">(optional)</span></label>
-      <input id="t-cap" [ngModel]="t.caption" (ngModelChange)="t.caption = $event" placeholder="Living room, east wall crack…" />
-    </div>
-    <ng-container footer>
-      <button class="btn btn-ghost" type="button" (click)="tagging.set(null)">Cancel</button>
-      <button class="btn btn-pri" type="button" (click)="confirmTag()"><i class="fa-solid fa-check"></i> Save photo{{ t.files.length === 1 ? '' : 's' }}</button>
-    </ng-container>
-  </vp-dialog>
+  <vp-photo-tag-dialog [count]="t.files.length" [initialTag]="t.tag"
+    [note]="t.fromCamera ? null : 'Photos from the gallery keep no location and are not stamped, since they may have been taken elsewhere.'"
+    (done)="confirmTag($event.tag, $event.caption)" (closed)="tagging.set(null)" />
 }
 
-<!-- Photo viewer -->
-@if (viewing(); as p) {
-  <vp-dialog [title]="tagMeta(p.tag).label" [subtitle]="shortDate(p.takenAt) + (p.server ? ' · ' + p.server.takenByName : ' · waiting to upload')" icon="fa-image" (closed)="viewing.set(null)">
-    <div class="viewer">
-      @if (p.server) { <vp-auth-img [photoId]="p.server.id" [thumb]="false" [alt]="tagMeta(p.tag).label" /> } @else { <img [src]="p.localUrl" [alt]="tagMeta(p.tag).label" /> }
-    </div>
-    @if (p.queued?.error) { <div class="alert-inline danger top"><i class="fa-solid fa-circle-exclamation"></i> {{ p.queued!.error }}</div> }
-    <p class="small muted meta">
-      @if (p.latitude != null) {
-        <i class="fa-solid fa-location-dot"></i> <a [href]="mapLink(p.latitude, p.longitude!)" target="_blank" rel="noopener">{{ p.latitude }}, {{ p.longitude }}</a>
-        @if (photoDistance(p); as m) { · {{ metres(m) }} from the property }
-      } @else { <i class="fa-solid fa-location-dot"></i> No location on this photo }
-    </p>
-    @if (canEdit()) {
-      <div class="tag-pick small-pick">
-        @for (x of photoTags; track x.value) {
-          <button type="button" class="tp" [class.on]="p.tag === x.value" (click)="viewing.set({ ...p, tag: x.value })">{{ x.label }}</button>
-        }
-      </div>
-      <div class="fld top"><label for="p-cap">Caption</label><input id="p-cap" [ngModel]="p.caption" (ngModelChange)="viewing.set({ ...p, caption: $event })" /></div>
-    } @else if (p.caption) {
-      <p>{{ p.caption }}</p>
-    }
-    <ng-container footer>
-      @if (canEdit()) {
-        <button class="btn btn-ghost danger-text" type="button" (click)="removePhoto(p)"><i class="fa-solid fa-trash-can"></i> Remove</button>
-        @if (p.queued?.error) { <button class="btn btn-ghost" type="button" (click)="retryUpload(p); viewing.set(null)">Try again</button> }
-        <button class="btn btn-pri" type="button" (click)="retag(p, p.tag, p.caption)"><i class="fa-solid fa-check"></i> Save</button>
-      } @else {
-        <button class="btn btn-pri" type="button" (click)="viewing.set(null)">Close</button>
-      }
-    </ng-container>
-  </vp-dialog>
+<!-- Photo viewer (shared with the Photos pages) -->
+@if (viewing(); as v) {
+  <vp-photo-viewer [photos]="v.list" [start]="v.start" [canEdit]="canEdit()" [canDelete]="canEdit()" [showReport]="false"
+    (saved)="onPhotoSaved($event)" (removed)="onPhotoRemoved($event)" (retry)="onPhotoRetry($event)" (closed)="viewing.set(null)" />
 }
 
 @if (confirming()) {

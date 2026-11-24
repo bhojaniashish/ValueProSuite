@@ -1,50 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { GpsFix, InspectionData, InspectionDetail } from './inspections.api';
 
-// ---------------- photos: resize on the phone before upload ----------------
-
-export interface PreparedPhoto { image: Blob; thumb: Blob; width: number; height: number }
-
-const MAX_SIDE = 1600;
-const THUMB_SIDE = 360;
-
-/**
- * Phone photos are 3–8 MB; banks' reports need far less. Resizing to 1600 px (JPEG, ~300 KB) keeps uploads quick on
- * mobile data. EXIF orientation is applied, so photos are upright.
- */
-export async function preparePhoto(file: Blob): Promise<PreparedPhoto> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  try {
-    const [image, size] = await draw(bitmap, MAX_SIDE, 0.82);
-    const [thumb] = await draw(bitmap, THUMB_SIDE, 0.7);
-    return { image, thumb, width: size.w, height: size.h };
-  } finally {
-    bitmap.close();
-  }
-}
-
-async function draw(src: ImageBitmap, maxSide: number, quality: number): Promise<[Blob, { w: number; h: number }]> {
-  const scale = Math.min(1, maxSide / Math.max(src.width, src.height));
-  const w = Math.round(src.width * scale);
-  const h = Math.round(src.height * scale);
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d')!.drawImage(src, 0, 0, w, h);
-  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', quality));
-  if (!blob) throw new Error('Could not process the photo.');
-  return [blob, { w, h }];
-}
-
-export function newKey(): string {
-  return typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-      });
-}
-
 // ---------------- location ----------------
 
 @Injectable({ providedIn: 'root' })

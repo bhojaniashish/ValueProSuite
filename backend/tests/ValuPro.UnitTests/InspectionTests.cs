@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ValuPro.Application.Abstractions;
 using ValuPro.Application.Common;
 using ValuPro.Application.Inspections;
+using ValuPro.Application.Photos;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Banks;
 using ValuPro.Domain.Inspections;
@@ -13,6 +14,7 @@ using ValuPro.Domain.Security;
 using ValuPro.Infrastructure.Identity;
 using ValuPro.Infrastructure.Inspections;
 using ValuPro.Infrastructure.Persistence;
+using ValuPro.Infrastructure.Photos;
 
 namespace ValuPro.UnitTests;
 
@@ -57,6 +59,7 @@ public class InspectionTests : IAsyncLifetime
     private Guid _valuer, _other, _bank, _flat, _plot;
 
     private IInspectionService Svc => _scope.ServiceProvider.GetRequiredService<IInspectionService>();
+    private IPhotoService Photos => _scope.ServiceProvider.GetRequiredService<IPhotoService>();
     private AppDbContext Db => _scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
     public async Task InitializeAsync()
@@ -73,6 +76,7 @@ public class InspectionTests : IAsyncLifetime
         services.AddDbContext<AppDbContext>((sp, o) => o.UseInMemoryDatabase(name).AddInterceptors(sp.GetRequiredService<AuditingInterceptor>()));
         services.AddIdentityCore<AppUser>().AddRoles<AppRole>().AddEntityFrameworkStores<AppDbContext>();
         services.AddScoped<IInspectionService, InspectionService>();
+        services.AddScoped<IPhotoService, PhotoService>();
         _sp = services.BuildServiceProvider();
         _scope = _sp.CreateScope();
 
@@ -139,8 +143,8 @@ public class InspectionTests : IAsyncLifetime
         return d;
     }
 
-    private Task<Result<PhotoItem>> PhotoAsync(Guid id, PhotoTag tag, Guid? key = null, string type = "image/jpeg") =>
-        Svc.UploadPhotoAsync(id, new PhotoUpload(key ?? Guid.NewGuid(), tag, null, PropLat, PropLng, null, 1600, 1200),
+    private Task<Result<PhotoItem>> PhotoAsync(Guid id, PhotoTag tag, Guid? key = null, string type = "image/jpeg", decimal? lat = PropLat, decimal? lng = PropLng, PhotoSource source = PhotoSource.Site) =>
+        Photos.UploadAsync(id, new PhotoUpload(key ?? Guid.NewGuid(), tag, null, lat, lng, null, 1600, 1200, source, true),
             new MemoryStream([1, 2, 3]), new MemoryStream([4]), type, 3);
 
     [Fact]
@@ -242,18 +246,84 @@ public class InspectionTests : IAsyncLifetime
         Assert.Equal(first.Id, retry.Id);
         Assert.Equal(1, await Db.Set<AssignmentPhoto>().CountAsync());
         Assert.Equal(2, _files.Files.Count); // image + thumbnail
+        Assert.Equal(0, first.DistanceFromPropertyMetres);
+        Assert.True(first.Stamped);
 
         Assert.Equal("file", (await PhotoAsync(id, PhotoTag.Front, type: "application/pdf")).Error!.Field);
 
-        var moved = (await Svc.UpdatePhotoAsync(first.Id, new UpdatePhotoRequest(PhotoTag.Rear, " Back side "))).Value!;
-        Assert.Equal(PhotoTag.Rear, moved.Tag);
-        Assert.Equal("Back side", moved.Caption);
+        var changed = (await Photos.UpdateAsync(first.Id, new UpdatePhotoRequest(PhotoTag.Rear, " Back side ", false))).Value!;
+        Assert.Equal(PhotoTag.Rear, changed.Tag);
+        Assert.Equal("Back side", changed.Caption);
+        Assert.False(changed.IncludeInReport);
 
-        var file = (await Svc.OpenPhotoAsync(first.Id, thumb: true)).Value!;
-        Assert.Equal("image/jpeg", file.ContentType);
-
-        Assert.True((await Svc.DeletePhotoAsync(first.Id)).IsSuccess);
+        Assert.Equal("image/jpeg", (await Photos.OpenAsync(first.Id, thumb: true)).Value!.ContentType);
+        Assert.True((await Photos.DeleteAsync(first.Id)).IsSuccess);
         Assert.Empty((await Svc.GetAsync(id)).Value!.Photos);
+    }
+
+    [Fact]
+    public async Task Photos_can_be_reordered_and_kept_after_the_inspection_is_submitted()
+    {
+        var id = await CaseAsync();
+        var a = (await PhotoAsync(id, PhotoTag.Road)).Value!;
+        var b = (await PhotoAsync(id, PhotoTag.Front)).Value!;
+
+        var ordered = (await Photos.ReorderAsync(id, new ReorderPhotosRequest([b.Id, a.Id]))).Value!;
+        Assert.Equal([b.Id, a.Id], ordered.Select(p => p.Id));
+        Assert.Equal(ErrorKind.Conflict, (await Photos.ReorderAsync(id, new ReorderPhotosRequest([b.Id]))).Error!.Kind);
+
+        Db.Add(new Inspection { AssignmentId = id, StartedByName = "Test", Status = InspectionStatus.Submitted });
+        await Db.SaveChangesAsync();
+        var view = (await Photos.GetCaseAsync(id)).Value!;
+        Assert.True(view.CanEdit);
+        Assert.False(view.CanDelete);
+        Assert.Equal(ErrorKind.Conflict, (await Photos.DeleteAsync(a.Id)).Error!.Kind); // left out of the report instead
+        Assert.True((await Photos.UpdateAsync(a.Id, new UpdatePhotoRequest(PhotoTag.Road, null, false))).IsSuccess);
+        // office uploads are still possible after the visit (e.g. photos sent by the field team)
+        Assert.True((await PhotoAsync(id, PhotoTag.Interior, source: PhotoSource.Upload, lat: null, lng: null)).IsSuccess);
+
+        var case_ = await Db.Set<Assignment>().SingleAsync(x => x.Id == id);
+        case_.Status = AssignmentStatus.Submitted;
+        await Db.SaveChangesAsync();
+        Assert.Equal(ErrorKind.Forbidden, (await PhotoAsync(id, PhotoTag.Side)).Error!.Kind);
+    }
+
+    [Fact]
+    public async Task Gallery_filters_and_flags_photos_that_need_a_look()
+    {
+        var id = await CaseAsync();
+        await PhotoAsync(id, PhotoTag.Front);                                        // at the property
+        await PhotoAsync(id, PhotoTag.Road, lat: 21.155m, lng: 72.770m);             // ~1.7 km away
+        await PhotoAsync(id, PhotoTag.Interior, lat: null, lng: null);               // site photo without location
+        await PhotoAsync(id, PhotoTag.Document, lat: null, lng: null, source: PhotoSource.Upload); // office upload: fine
+
+        var all = await Photos.GalleryAsync(new PhotoQuery());
+        Assert.Equal(4, all.Summary.Total);
+        Assert.Equal(2, all.Summary.Attention);
+        Assert.Equal(1, all.Summary.ByTag[PhotoTag.Road]);
+
+        var attention = await Photos.GalleryAsync(new PhotoQuery(Attention: true));
+        Assert.Equal([PhotoTag.Interior, PhotoTag.Road], attention.Page.Items.Select(i => i.Photo.Tag).Order());
+        Assert.Single((await Photos.GalleryAsync(new PhotoQuery(Tag: PhotoTag.Front))).Page.Items);
+        Assert.Empty((await Photos.GalleryAsync(new PhotoQuery(Search: "nobody"))).Page.Items);
+    }
+
+    [Fact]
+    public async Task Zip_names_photos_in_report_order()
+    {
+        var id = await CaseAsync();
+        var road = (await PhotoAsync(id, PhotoTag.Road)).Value!;
+        var front = (await PhotoAsync(id, PhotoTag.Front)).Value!;
+        await Photos.ReorderAsync(id, new ReorderPhotosRequest([front.Id, road.Id]));
+        await Photos.UpdateAsync(road.Id, new UpdatePhotoRequest(PhotoTag.Road, "40 ft road", false));
+
+        var all = (await Photos.ZipAsync(id, reportOnly: false)).Value!;
+        using var zip = new System.IO.Compression.ZipArchive(all.Content);
+        Assert.Equal(["01 Front elevation.jpg", "02 Approach road - 40 ft road.jpg", "photos.csv"], zip.Entries.Select(e => e.FullName));
+
+        var report = (await Photos.ZipAsync(id, reportOnly: true)).Value!;
+        using var reportZip = new System.IO.Compression.ZipArchive(report.Content);
+        Assert.Equal(["01 Front elevation.jpg", "photos.csv"], reportZip.Entries.Select(e => e.FullName));
     }
 
     [Fact]

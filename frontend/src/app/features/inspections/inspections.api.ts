@@ -4,13 +4,10 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { AssignmentStatus } from '../assignments/assignments.api';
 import type { AnswerType } from '../banks/banks.api';
+import type { PhotoItem } from '../photos/photos.api';
 import type { PropertyType } from '../properties/properties.api';
 
 export type InspectionStatus = 'Draft' | 'Submitted';
-export type PhotoTag =
-  | 'Front' | 'Rear' | 'Side' | 'Interior' | 'Kitchen' | 'Bathroom' | 'Road' | 'Neighbourhood'
-  | 'NameBoard' | 'Selfie' | 'Deviation' | 'Document' | 'Other';
-
 export type SectionKey = 'visit' | 'location' | 'boundaries' | 'occupancy' | 'building' | 'measurements' | 'approvals' | 'bank' | 'photos' | 'remarks';
 
 export interface Opt { value: string; label: string }
@@ -75,24 +72,6 @@ export const OC: Opt[] = [
 ];
 export const MARKETABILITY = o('Good', 'Average', 'Poor');
 export const YES_NO: Opt[] = [{ value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }];
-
-export const PHOTO_TAGS: { value: PhotoTag; label: string; icon: string }[] = [
-  { value: 'Front', label: 'Front elevation', icon: 'fa-building' },
-  { value: 'Road', label: 'Approach road', icon: 'fa-road' },
-  { value: 'Rear', label: 'Rear elevation', icon: 'fa-building-circle-arrow-right' },
-  { value: 'Side', label: 'Side elevation', icon: 'fa-building-flag' },
-  { value: 'Interior', label: 'Interior', icon: 'fa-couch' },
-  { value: 'Kitchen', label: 'Kitchen', icon: 'fa-kitchen-set' },
-  { value: 'Bathroom', label: 'Bathroom', icon: 'fa-toilet' },
-  { value: 'Neighbourhood', label: 'Neighbourhood', icon: 'fa-tree-city' },
-  { value: 'NameBoard', label: 'Name board / meter', icon: 'fa-signs-post' },
-  { value: 'Selfie', label: 'Valuer at site', icon: 'fa-user-check' },
-  { value: 'Deviation', label: 'Deviation', icon: 'fa-triangle-exclamation' },
-  { value: 'Document', label: 'Document', icon: 'fa-file-lines' },
-  { value: 'Other', label: 'Other', icon: 'fa-image' },
-];
-export const REQUIRED_PHOTOS: PhotoTag[] = ['Front', 'Road'];
-export const tagMeta = (t: PhotoTag) => PHOTO_TAGS.find((x) => x.value === t) ?? PHOTO_TAGS[PHOTO_TAGS.length - 1];
 
 // ---------------- data ----------------
 
@@ -184,11 +163,6 @@ export interface InspectionCase {
   propertyLandArea: number | null; propertyBuiltUpArea: number | null; siteVisitAt: string | null; dueDate: string; valuerName: string;
 }
 
-export interface PhotoItem {
-  id: string; clientKey: string; tag: PhotoTag; caption: string | null; width: number | null; height: number | null; sizeBytes: number;
-  latitude: number | null; longitude: number | null; takenAt: string; takenByName: string;
-}
-
 export interface BankQuestion { text: string; answerType: AnswerType; options: string[]; required: boolean }
 
 export interface InspectionDetail {
@@ -209,11 +183,6 @@ export interface InspectionListItem {
   updatedAt: string | null; photoCount: number;
 }
 
-export interface PhotoMeta {
-  clientKey: string; tag: PhotoTag; caption: string | null; latitude: number | null; longitude: number | null;
-  takenAt: string; width: number; height: number;
-}
-
 /** Straight-line distance in metres, for instant feedback before the server confirms. */
 export function distanceMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const r = (d: number) => (d * Math.PI) / 180;
@@ -221,7 +190,7 @@ export function distanceMetres(lat1: number, lng1: number, lat2: number, lng2: n
   return Math.round(2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(h))));
 }
 
-export const metres = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
+export { metres } from '../photos/photos.api';
 
 @Injectable({ providedIn: 'root' })
 export class InspectionsApi {
@@ -240,21 +209,5 @@ export class InspectionsApi {
   }
   submit(assignmentId: string, version: number): Observable<InspectionDetail> {
     return this.http.post<InspectionDetail>(`${this.base}/${assignmentId}/submit`, { version });
-  }
-  upload(assignmentId: string, meta: PhotoMeta, image: Blob, thumb: Blob): Observable<PhotoItem> {
-    const f = new FormData();
-    f.append('file', image, `${meta.clientKey}.jpg`);
-    f.append('thumb', thumb, `${meta.clientKey}-thumb.jpg`);
-    for (const [k, v] of Object.entries(meta)) if (v != null) f.append(k, String(v));
-    return this.http.post<PhotoItem>(`${this.base}/${assignmentId}/photos`, f);
-  }
-  updatePhoto(id: string, tag: PhotoTag, caption: string | null): Observable<PhotoItem> {
-    return this.http.put<PhotoItem>(`${this.base}/photos/${id}`, { tag, caption });
-  }
-  deletePhoto(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/photos/${id}`);
-  }
-  photoBlob(id: string, thumb: boolean): Observable<Blob> {
-    return this.http.get(`${this.base}/photos/${id}/file`, { params: { thumb }, responseType: 'blob' });
   }
 }

@@ -55,6 +55,13 @@ public enum PhotoTag
     Other = 12,
 }
 
+/// <summary>Where a photo came from: the phone camera at site, or added later (office upload, phone gallery).</summary>
+public enum PhotoSource
+{
+    Site = 0,
+    Upload = 1,
+}
+
 /// <summary>A photo taken for an assignment (at site or later). The Photos module and reports use the same records.</summary>
 public class AssignmentPhoto : TenantEntity
 {
@@ -75,7 +82,16 @@ public class AssignmentPhoto : TenantEntity
     public decimal? Longitude { get; set; }
     public DateTimeOffset TakenAt { get; set; }
     public required string TakenByName { get; set; }
+    /// <summary>Position in the report; the Photos page lets the office reorder.</summary>
     public int SortOrder { get; set; }
+
+    public PhotoSource Source { get; set; }
+    /// <summary>Date, time and location printed on the photo by the phone (camera photos only).</summary>
+    public bool Stamped { get; set; }
+    /// <summary>Banks want a handful of photos; the rest stay on file.</summary>
+    public bool IncludeInReport { get; set; } = true;
+    /// <summary>From the property's saved location, when both are known (worked out on upload).</summary>
+    public int? DistanceFromPropertyMetres { get; set; }
 }
 
 // ---------------- recorded details ----------------

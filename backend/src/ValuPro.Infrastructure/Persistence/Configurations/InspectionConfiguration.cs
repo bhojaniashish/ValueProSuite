@@ -48,6 +48,7 @@ public sealed class AssignmentPhotoConfiguration : IEntityTypeConfiguration<Assi
         b.HasIndex(x => new { x.AssignmentId, x.ClientKey }).IsUnique();
         b.HasOne<Assignment>().WithMany().HasForeignKey(x => x.AssignmentId).OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.Tag).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.Source).HasConversion<string>().HasMaxLength(10);
         b.Property(x => x.Caption).HasMaxLength(200);
         b.Property(x => x.BlobPath).HasMaxLength(400).IsRequired();
         b.Property(x => x.ThumbPath).HasMaxLength(400).IsRequired();

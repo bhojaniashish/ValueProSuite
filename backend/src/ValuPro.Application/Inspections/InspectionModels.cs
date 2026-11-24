@@ -1,5 +1,6 @@
 using FluentValidation;
 using ValuPro.Application.Common;
+using ValuPro.Application.Photos;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Banks;
 using ValuPro.Domain.Inspections;
@@ -48,19 +49,6 @@ public sealed record InspectionCase(
     DateOnly DueDate,
     string ValuerName);
 
-public sealed record PhotoItem(
-    Guid Id,
-    Guid ClientKey,
-    PhotoTag Tag,
-    string? Caption,
-    int? Width,
-    int? Height,
-    long SizeBytes,
-    decimal? Latitude,
-    decimal? Longitude,
-    DateTimeOffset TakenAt,
-    string TakenByName);
-
 public sealed record BankQuestionItem(string Text, AnswerType AnswerType, IReadOnlyList<string> Options, bool Required);
 
 public sealed record InspectionDetail(
@@ -97,31 +85,12 @@ public sealed record SaveInspectionResult(int Version, IReadOnlyList<MissingItem
 
 public sealed record SubmitInspectionRequest(int Version);
 
-public sealed record PhotoUpload(
-    Guid ClientKey,
-    PhotoTag Tag,
-    string? Caption,
-    decimal? Latitude,
-    decimal? Longitude,
-    DateTimeOffset? TakenAt,
-    int? Width,
-    int? Height);
-
-public sealed record UpdatePhotoRequest(PhotoTag Tag, string? Caption);
-
-public sealed record PhotoFile(Stream Content, string ContentType);
-
 public interface IInspectionService
 {
     Task<IReadOnlyList<InspectionListItem>> ListAsync(InspectionQuery query, CancellationToken ct = default);
     Task<Result<InspectionDetail>> GetAsync(Guid assignmentId, CancellationToken ct = default);
     Task<Result<SaveInspectionResult>> SaveAsync(Guid assignmentId, SaveInspectionRequest request, CancellationToken ct = default);
     Task<Result<InspectionDetail>> SubmitAsync(Guid assignmentId, SubmitInspectionRequest request, CancellationToken ct = default);
-
-    Task<Result<PhotoItem>> UploadPhotoAsync(Guid assignmentId, PhotoUpload meta, Stream image, Stream thumb, string contentType, long size, CancellationToken ct = default);
-    Task<Result<PhotoItem>> UpdatePhotoAsync(Guid photoId, UpdatePhotoRequest request, CancellationToken ct = default);
-    Task<Result<bool>> DeletePhotoAsync(Guid photoId, CancellationToken ct = default);
-    Task<Result<PhotoFile>> OpenPhotoAsync(Guid photoId, bool thumb, CancellationToken ct = default);
 }
 
 public sealed class SaveInspectionRequestValidator : AbstractValidator<SaveInspectionRequest>
@@ -143,14 +112,5 @@ public sealed class SaveInspectionRequestValidator : AbstractValidator<SaveInspe
         RuleFor(x => x.Data.Measurements.Floors.Count).LessThanOrEqualTo(60).When(x => x.Data is not null).WithMessage("Up to 60 floor rows.");
         RuleFor(x => x.Data.BankAnswers.Count).LessThanOrEqualTo(100).When(x => x.Data is not null);
         RuleFor(x => x.Data.Remarks.Text).MaximumLength(4000).When(x => x.Data is not null).WithMessage("Keep remarks under 4,000 characters.");
-    }
-}
-
-public sealed class UpdatePhotoRequestValidator : AbstractValidator<UpdatePhotoRequest>
-{
-    public UpdatePhotoRequestValidator()
-    {
-        RuleFor(x => x.Tag).IsInEnum();
-        RuleFor(x => x.Caption).MaximumLength(200);
     }
 }

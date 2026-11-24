@@ -618,8 +618,14 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<int?>("DistanceFromPropertyMetres")
+                        .HasColumnType("int");
+
                     b.Property<int?>("Height")
                         .HasColumnType("int");
+
+                    b.Property<bool>("IncludeInReport")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -637,6 +643,14 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<bool>("Stamped")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Tag")
                         .IsRequired()

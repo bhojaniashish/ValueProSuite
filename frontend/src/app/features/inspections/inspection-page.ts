@@ -10,15 +10,19 @@ import { AmountInput } from '../../shared/amount-input';
 import { Choice, Multi, YesNo } from '../../shared/chips';
 import { shortDate } from '../assignments/assignments.api';
 import { mapsUrl, propertyType } from '../properties/properties.api';
-import { AuthImage } from './auth-image';
-import { Drafts, Gps, newKey, preparePhoto } from './field-tools';
+import { BrandingService } from '../../core/branding/branding.service';
+import { AuthImage } from '../photos/auth-image';
+import { newKey, preparePhoto } from '../photos/photo-tools';
+import { PhotoTagDialog } from '../photos/photo-tag-dialog';
+import { PhotoChange, PhotoViewer, ViewerPhoto } from '../photos/photo-viewer';
+import { PHOTO_TAGS, PhotoItem, PhotosApi, PhotoTag, REQUIRED_PHOTOS, tagMeta } from '../photos/photos.api';
+import { Drafts, Gps } from './field-tools';
 import {
   ACCESS, BUILDING_AMENITIES, CIVIC, CONDITION, DEFECTS, DEVELOPMENT, DEVIATION, distanceMetres, FACING, GpsFix, IDENTIFIED_BY,
   InspectionData, InspectionDetail, InspectionsApi, LOCALITY_CLASSES, LOCALITY_TYPES, MARKETABILITY, metres, MissingItem, NEGATIVES,
-  normalize, OC, OCCUPANCY, PARKING, PHOTO_TAGS, PhotoItem, PhotoTag, PLAN_SEEN, QUALITY, RELATIONS, REQUIRED_PHOTOS, ROAD_TYPES,
-  SectionKey, SPEC_SUGGESTIONS, tagMeta, YES_NO,
+  normalize, OC, OCCUPANCY, PARKING, PLAN_SEEN, QUALITY, RELATIONS, ROAD_TYPES, SectionKey, SPEC_SUGGESTIONS, YES_NO,
 } from './inspections.api';
-import { PhotoQueue, QueuedPhoto } from './photo-queue';
+import { PhotoQueue, QueuedPhoto } from '../photos/photo-queue';
 
 type Step = SectionKey | 'review';
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'offline' | 'conflict' | 'error';
@@ -60,7 +64,7 @@ export interface ShownPhoto {
 
 @Component({
   selector: 'vp-inspection-page',
-  imports: [FormsModule, RouterLink, Dialog, AmountInput, Choice, Multi, YesNo, AuthImage],
+  imports: [FormsModule, RouterLink, Dialog, AmountInput, Choice, Multi, YesNo, AuthImage, PhotoViewer, PhotoTagDialog],
   templateUrl: './inspection-page.html',
   styleUrl: './inspection-page.scss',
 })
@@ -69,6 +73,8 @@ export class InspectionPage implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   protected readonly queue = inject(PhotoQueue);
+  private readonly photosApi = inject(PhotosApi);
+  private readonly branding = inject(BrandingService);
   protected readonly gps = inject(Gps);
 
   readonly id = input.required<string>();
@@ -107,8 +113,8 @@ export class InspectionPage implements OnInit {
   protected readonly offlineCopy = signal(false);
 
   protected readonly photos = signal<PhotoItem[]>([]);
-  protected readonly viewing = signal<ShownPhoto | null>(null);
-  protected readonly tagging = signal<{ files: File[]; tag: PhotoTag; caption: string } | null>(null);
+  protected readonly viewing = signal<{ list: ViewerPhoto[]; start: number } | null>(null);
+  protected readonly tagging = signal<{ files: File[]; tag: PhotoTag; fromCamera: boolean } | null>(null);
   protected readonly preparing = signal(false);
   protected readonly confirming = signal(false);
   protected readonly submitting = signal(false);
@@ -383,26 +389,35 @@ export class InspectionPage implements OnInit {
     if (!files.length) return;
     const tag = this.pendingCameraTag;
     this.pendingCameraTag = null;
-    if (fromCamera && tag) return this.addPhotos(files, tag, null);
-    this.tagging.set({ files, tag: tag ?? DEFAULT_TAG[this.step()] ?? 'Other', caption: '' });
+    if (fromCamera && tag) return this.addPhotos(files, tag, null, true);
+    this.tagging.set({ files, tag: tag ?? DEFAULT_TAG[this.step()] ?? 'Other', fromCamera });
   }
 
-  protected async confirmTag(): Promise<void> {
+  protected async confirmTag(tag: PhotoTag, caption: string | null): Promise<void> {
     const t = this.tagging();
     if (!t) return;
     this.tagging.set(null);
-    await this.addPhotos(t.files, t.tag, t.caption.trim() || null);
+    await this.addPhotos(t.files, tag, caption, t.fromCamera);
   }
 
-  private async addPhotos(files: File[], tag: PhotoTag, caption: string | null): Promise<void> {
+  /**
+   * Camera photos are taken here and now, so they get this location and a printed date/location stamp.
+   * Photos picked from the gallery may have been taken anywhere, so they get neither.
+   */
+  private async addPhotos(files: File[], tag: PhotoTag, caption: string | null, fromCamera: boolean): Promise<void> {
     this.preparing.set(true);
     try {
-      const fix = await this.gps.forPhoto();
+      const fix = fromCamera ? await this.gps.forPhoto() : null;
+      const line = `${this.c()?.number ?? ''} · ${this.branding.branding().firmName}`;
       for (const f of files) {
-        const p = await preparePhoto(f);
+        const takenAt = fromCamera ? new Date() : new Date(f.lastModified || Date.now());
+        const p = await preparePhoto(f, fromCamera
+          ? { takenAt, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null, accuracyMetres: fix?.accuracyMetres, line }
+          : undefined);
         await this.queue.add({
           assignmentId: this.id(), clientKey: newKey(), tag, caption, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null,
-          takenAt: new Date(f.lastModified || Date.now()).toISOString(), width: p.width, height: p.height, image: p.image, thumb: p.thumb,
+          takenAt: takenAt.toISOString(), width: p.width, height: p.height, image: p.image, thumb: p.thumb,
+          source: fromCamera ? 'Site' : 'Upload', stamped: fromCamera,
         });
       }
       this.toast.ok(files.length === 1 ? `Photo added: ${tagMeta(tag).label}` : `${files.length} photos added`,
@@ -423,26 +438,46 @@ export class InspectionPage implements OnInit {
     return u;
   }
 
-  protected async retag(p: ShownPhoto, tag: PhotoTag, caption: string | null): Promise<void> {
-    if (p.server) {
+  private toViewer(p: ShownPhoto): ViewerPhoto {
+    const c = this.c();
+    const distance = p.server?.distanceFromPropertyMetres
+      ?? (p.latitude != null && p.longitude != null && c?.propertyLatitude != null && c.propertyLongitude != null
+        ? distanceMetres(p.latitude, p.longitude, c.propertyLatitude, c.propertyLongitude) : null);
+    return {
+      key: p.key, serverId: p.server?.id, localUrl: p.localUrl, tag: p.tag, caption: p.caption,
+      includeInReport: p.server?.includeInReport ?? true, takenAt: p.takenAt, takenByName: p.server?.takenByName,
+      latitude: p.latitude, longitude: p.longitude, distance, source: p.server?.source ?? p.queued?.source ?? 'Site',
+      stamped: p.server?.stamped ?? p.queued?.stamped ?? false, error: p.queued?.error,
+    };
+  }
+
+  protected open(p: ShownPhoto): void {
+    const list = this.shown();
+    this.viewing.set({ list: list.map((x) => this.toViewer(x)), start: Math.max(0, list.findIndex((x) => x.key === p.key)) });
+  }
+
+  protected async onPhotoSaved(ch: PhotoChange): Promise<void> {
+    const p = ch.photo;
+    if (p.serverId) {
       try {
-        const updated = await firstValueFrom(this.api.updatePhoto(p.server.id, tag, caption));
+        const updated = await firstValueFrom(this.photosApi.update(p.serverId, ch.tag, ch.caption, ch.includeInReport));
         this.photos.update((ps) => ps.map((x) => (x.id === updated.id ? updated : x)));
         this.schedule(300);
       } catch (e) {
-        this.toast.error('Could not change the photo', toProblem(e).message);
+        return this.toast.error('Could not change the photo', toProblem(e).message);
       }
-    } else if (p.queued) {
-      await this.queue.add({ ...p.queued, tag, caption, error: undefined });
+    } else {
+      const q = this.queued().find((x) => x.clientKey === p.key);
+      if (q) await this.queue.add({ ...q, tag: ch.tag, caption: ch.caption, error: undefined });
     }
     this.viewing.set(null);
   }
 
-  protected async removePhoto(p: ShownPhoto): Promise<void> {
-    if (p.server) {
+  protected async onPhotoRemoved(p: ViewerPhoto): Promise<void> {
+    if (p.serverId) {
       try {
-        await firstValueFrom(this.api.deletePhoto(p.server.id));
-        this.photos.update((ps) => ps.filter((x) => x.id !== p.server!.id));
+        await firstValueFrom(this.photosApi.delete(p.serverId));
+        this.photos.update((ps) => ps.filter((x) => x.id !== p.serverId));
         this.schedule(300);
       } catch (e) {
         return this.toast.error('Could not remove the photo', toProblem(e).message);
@@ -453,19 +488,13 @@ export class InspectionPage implements OnInit {
     this.viewing.set(null);
   }
 
-  protected retryUpload(p: ShownPhoto): void {
+  protected onPhotoRetry(p: ViewerPhoto): void {
     this.queue.retry(p.key);
+    this.viewing.set(null);
   }
 
   protected isUploading(p: ShownPhoto): boolean {
     return this.queue.uploading() === p.key;
-  }
-
-  protected photoDistance(p: ShownPhoto): number | null {
-    const c = this.c();
-    return p.latitude != null && p.longitude != null && c?.propertyLatitude != null && c.propertyLongitude != null
-      ? distanceMetres(p.latitude, p.longitude, c.propertyLatitude, c.propertyLongitude)
-      : null;
   }
 
   // ---------------- measurements ----------------

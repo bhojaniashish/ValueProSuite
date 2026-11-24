@@ -2,7 +2,7 @@ import { inject, Injectable, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, Subject } from 'rxjs';
 import { toProblem } from '../../core/api/problem';
-import { InspectionsApi, PhotoItem, PhotoMeta } from './inspections.api';
+import { PhotoItem, PhotoMeta, PhotosApi } from './photos.api';
 
 export interface QueuedPhoto extends PhotoMeta {
   assignmentId: string;
@@ -43,7 +43,7 @@ async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRe
  */
 @Injectable({ providedIn: 'root' })
 export class PhotoQueue {
-  private readonly api = inject(InspectionsApi);
+  private readonly api = inject(PhotosApi);
   private running = false;
   private retryTimer?: ReturnType<typeof setTimeout>;
 

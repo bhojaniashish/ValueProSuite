@@ -8,13 +8,14 @@ import { Dialog } from '../../core/ui/dialog';
 import { timeAgo } from '../../core/ui/format';
 import { ToastService } from '../../core/ui/toast';
 import { BankBadge } from '../banks/bank-badge';
+import { PhotoStrip } from '../photos/photo-strip';
 import { AssignmentFormDialog } from './assignment-form-dialog';
 import { AssignmentDetail, AssignmentsApi, AssignmentStatus, priorityBadge, rupees, shortDate, STAGES, statusMeta } from './assignments.api';
 import { MoveDialog, MoveKind } from './move-dialog';
 
 @Component({
   selector: 'vp-assignment-detail-page',
-  imports: [RouterLink, BankBadge, AssignmentFormDialog, MoveDialog, Dialog],
+  imports: [RouterLink, BankBadge, AssignmentFormDialog, MoveDialog, Dialog, PhotoStrip],
   templateUrl: './assignment-detail-page.html',
   styleUrl: './assignment-detail-page.scss',
 })

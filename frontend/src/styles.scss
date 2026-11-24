@@ -232,6 +232,8 @@ a {
   &:disabled { background-color: var(--bg); color: var(--ink-2); cursor: not-allowed; }
   &[aria-invalid='true'] { border-color: var(--danger); }
 }
+/* Date and time boxes have a built-in minimum width; let them shrink on narrow screens. */
+:where(input[type='date'], input[type='time'], input[type='datetime-local']) { min-width: 0; }
 :where(textarea) {
   height: auto;
   min-height: 80px;

@@ -1,18 +1,18 @@
 import { Component, effect, inject, Injectable, input, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { InspectionsApi } from './inspections.api';
+import { PhotosApi } from './photos.api';
 
 /** Photo files need the sign-in token, so they are fetched as blobs and shown from object URLs (kept for the session). */
 @Injectable({ providedIn: 'root' })
 export class PhotoUrls {
-  private readonly api = inject(InspectionsApi);
+  private readonly api = inject(PhotosApi);
   private readonly cache = new Map<string, Promise<string>>();
 
   get(id: string, thumb: boolean): Promise<string> {
     const key = `${id}:${thumb}`;
     let p = this.cache.get(key);
     if (!p) {
-      p = firstValueFrom(this.api.photoBlob(id, thumb)).then((b) => URL.createObjectURL(b));
+      p = firstValueFrom(this.api.blob(id, thumb)).then((b) => URL.createObjectURL(b));
       p.catch(() => this.cache.delete(key));
       this.cache.set(key, p);
     }
