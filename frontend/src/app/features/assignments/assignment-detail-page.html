@@ -30,6 +30,8 @@
   <div class="actions card">
     @if (cancelled()) {
       <span class="state"><i class="fa-solid fa-ban"></i> This assignment is cancelled.</span>
+    } @else if (d.moves.next === 'InspectionDone' && canViewInspection()) {
+      <a class="btn btn-pri" [routerLink]="['/inspection', d.assignment.id]"><i class="fa-solid fa-location-crosshairs"></i> Open Site Inspection</a>
     } @else if (d.moves.next) {
       <button class="btn btn-pri" type="button" [disabled]="!d.moves.canMoveNext || busy()" (click)="next()">
         <i class="fa-solid" [class]="busy() ? 'fa-spinner fa-spin' : meta(d.moves.next).icon"></i>
@@ -37,6 +39,11 @@
       </button>
     } @else {
       <span class="state ok"><i class="fa-solid fa-circle-check"></i> All stages complete.</span>
+    }
+    @if (canViewInspection() && !cancelled() && d.moves.next !== 'InspectionDone') {
+      <a class="btn btn-ghost" [routerLink]="['/inspection', d.assignment.id]">
+        <i class="fa-solid fa-location-crosshairs"></i> {{ d.assignment.status === 'New' ? 'Start Site Inspection' : 'Site Inspection' }}
+      </a>
     }
     @if (d.moves.back) {
       <button class="btn btn-ghost" type="button" (click)="move.set({ kind: 'back', to: d.moves.back })"><i class="fa-solid fa-rotate-left"></i> Send back</button>

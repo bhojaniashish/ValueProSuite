@@ -1,0 +1,589 @@
+@if (loadError()) {
+  <div class="card empty">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <b>Could not open the inspection</b>
+    <span>{{ loadError() }}</span>
+    <a class="btn btn-soft btn-sm" routerLink="/inspection">Back to site visits</a>
+  </div>
+} @else if (c(); as c) {
+  <!-- Case header -->
+  <div class="head card">
+    <a class="back" routerLink="/inspection" aria-label="Back to site visits"><i class="fa-solid fa-arrow-left"></i></a>
+    <div class="who">
+      <div class="line1">
+        <span class="bank" [style.background]="c.bankColor">{{ c.bankShortCode }}</span>
+        <a class="num" [routerLink]="['/assignments', c.assignmentId]">{{ c.number }}</a>
+        @if (submitted()) { <span class="badge b-ok"><i class="fa-solid fa-circle-check"></i> Submitted</span> }
+      </div>
+      <b class="applicant">{{ c.applicantName }}</b>
+      <span class="small muted">{{ c.propertySummary }}@if (c.propertyAddress) { · {{ c.propertyAddress }} }</span>
+    </div>
+    <div class="quick">
+      @if (c.applicantPhone) { <a class="btn btn-ghost btn-sm" [href]="tel(c.applicantPhone)"><i class="fa-solid fa-phone"></i><span class="hide-xs"> Call</span></a> }
+      @if (directions(); as url) { <a class="btn btn-ghost btn-sm" [href]="url" target="_blank" rel="noopener"><i class="fa-solid fa-diamond-turn-right"></i><span class="hide-xs"> Directions</span></a> }
+    </div>
+    <div class="status" [attr.data-state]="saveState()" aria-live="polite">
+      @switch (saveState()) {
+        @case ('saving') { <i class="fa-solid fa-spinner fa-spin"></i> Saving… }
+        @case ('pending') { <i class="fa-solid fa-pen"></i> Editing… }
+        @case ('saved') { <i class="fa-solid fa-cloud"></i> Saved }
+        @case ('offline') { <i class="fa-solid fa-mobile-screen"></i> No signal: saved on this phone }
+        @case ('conflict') { <i class="fa-solid fa-triangle-exclamation"></i> Changed elsewhere }
+        @case ('error') { <i class="fa-solid fa-triangle-exclamation"></i> Not saved }
+        @default { @if (detail()?.started) { <i class="fa-solid fa-cloud"></i> Saved } @else { <i class="fa-regular fa-circle"></i> Not started } }
+      }
+    </div>
+  </div>
+
+  @if (!canEdit() && detail()?.readOnlyReason) {
+    <div class="alert-inline info banner"><i class="fa-solid fa-lock"></i> {{ detail()!.readOnlyReason }}</div>
+  }
+  @if (offlineCopy()) {
+    <div class="alert-inline info banner"><i class="fa-solid fa-mobile-screen"></i> No signal. Showing the copy saved on this phone; changes will upload when the connection returns.</div>
+  }
+  @if (strayCopy(); as sc) {
+    <div class="alert-inline danger banner col">
+      <span><i class="fa-solid fa-triangle-exclamation"></i> This phone has changes from {{ shortDate(sc.savedAt) }} that were not uploaded, and the inspection was changed on another device since.</span>
+      <span class="row">
+        <button class="btn btn-ghost btn-sm" type="button" (click)="discardStrayCopy()">Keep the other device's copy</button>
+        <button class="btn btn-danger btn-sm" type="button" (click)="useStrayCopy()">Use this phone's copy</button>
+      </span>
+    </div>
+  }
+  @if (saveState() === 'conflict' || saveState() === 'error') {
+    <div class="alert-inline danger banner col">
+      <span><i class="fa-solid fa-triangle-exclamation"></i> {{ saveMessage() }}</span>
+      @if (saveState() === 'conflict') { <span class="row"><button class="btn btn-danger btn-sm" type="button" (click)="reload()">Reload</button></span> }
+    </div>
+  }
+
+  <!-- Steps (phones: scrollable chips + progress) -->
+  <div class="steps-top">
+    <div class="bar"><span [style.width.%]="progress()"></span></div>
+    <div class="chips" role="tablist" aria-label="Inspection steps">
+      @for (s of sections(); track s.key) {
+        <button type="button" role="tab" class="chip" [class.on]="s.key === step()" [attr.aria-selected]="s.key === step()" (click)="go(s.key)">
+          @if (s.key !== 'review' && !sectionMissing(s.key)) { <i class="fa-solid fa-circle-check ok"></i> } @else { <i class="fa-solid" [class]="s.icon"></i> }
+          {{ s.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Steps (desktop) -->
+    <nav class="side card" aria-label="Inspection steps">
+      <div class="prog"><b>{{ progress() }}%</b><span class="small muted">complete</span></div>
+      <div class="bar"><span [style.width.%]="progress()"></span></div>
+      @for (s of sections(); track s.key) {
+        <button type="button" class="item" [class.on]="s.key === step()" (click)="go(s.key)">
+          <i class="fa-solid" [class]="s.icon"></i>
+          <span>{{ s.label }}</span>
+          @if (s.key === 'review') { }
+          @else if (sectionMissing(s.key); as n) { <span class="n" [title]="n + ' still needed'">{{ n }}</span> }
+          @else { <i class="fa-solid fa-circle-check ok"></i> }
+        </button>
+      }
+    </nav>
+
+    <main class="content">
+      <fieldset class="form" [disabled]="!canEdit()" (input)="changed()" (change)="changed()">
+        <section class="card sec">
+          <div class="sec-head">
+            <span class="ic"><i class="fa-solid" [class]="current().icon"></i></span>
+            <div>
+              <h3>{{ current().label }}</h3>
+              <span class="small muted">Step {{ index() + 1 }} of {{ sections().length }}</span>
+            </div>
+            @if (step() !== 'review' && canEdit()) {
+              <button class="btn btn-ghost btn-sm cam" type="button" (click)="openCamera(cameraIn, null)" [disabled]="preparing()">
+                <i class="fa-solid" [class]="preparing() ? 'fa-spinner fa-spin' : 'fa-camera'"></i><span class="hide-xs"> Photo</span>
+              </button>
+            }
+          </div>
+
+          @if (missingBySection().get(step()); as m) {
+            @if (step() !== 'review' && step() !== 'photos') {
+              <ul class="todo">@for (x of m; track x.message) { <li><i class="fa-regular fa-circle"></i> {{ x.message }}</li> }</ul>
+            }
+          }
+
+          <div class="sec-body">
+            @switch (step()) {
+              <!-- ============ VISIT ============ -->
+              @case ('visit') {
+                <div class="gps" [class.far]="far()">
+                  <div class="gps-main">
+                    <span class="gps-ic"><i class="fa-solid fa-location-crosshairs"></i></span>
+                    @if (location(); as l) {
+                      <div>
+                        <b class="tnum">{{ l.latitude.toFixed(6) }}, {{ l.longitude.toFixed(6) }}</b>
+                        <span class="small muted">
+                          @if (l.accuracyMetres != null) { ±{{ l.accuracyMetres }} m · }
+                          @if (l.at) { {{ shortDate(l.at) }} }
+                          · <a [href]="mapLink(l.latitude, l.longitude)" target="_blank" rel="noopener">Map</a>
+                        </span>
+                      </div>
+                    } @else {
+                      <div><b>Location at site</b><span class="small muted">Capture it when you reach the property.</span></div>
+                    }
+                    <button class="btn btn-sm" [class]="location() ? 'btn-ghost' : 'btn-pri'" type="button" (click)="capture()" [disabled]="locating()">
+                      <i class="fa-solid" [class]="locating() ? 'fa-spinner fa-spin' : 'fa-location-arrow'"></i> {{ location() ? 'Capture again' : 'Capture location' }}
+                    </button>
+                  </div>
+                  @if (locationError()) { <span class="err small"><i class="fa-solid fa-circle-exclamation"></i> {{ locationError() }}</span> }
+                  @if (distance() != null) {
+                    <span class="small" [class.warn]="far()">
+                      <i class="fa-solid" [class]="far() ? 'fa-triangle-exclamation' : 'fa-circle-check'"></i>
+                      {{ metres(distance()!) }} from the location saved on the property{{ far() ? '. Check this is the right property; the reviewer will see this.' : '.' }}
+                    </span>
+                  } @else if (location() && c.propertyLatitude == null) {
+                    <span class="small muted">The property has no saved location, so this can't be compared.</span>
+                  }
+                </div>
+
+                <div class="form-grid">
+                  <div class="fld">
+                    <label for="v-person">Person met at the property</label>
+                    <input id="v-person" [(ngModel)]="d.visit.personMet" autocomplete="off" placeholder="Name" />
+                  </div>
+                  <div class="fld">
+                    <label for="v-phone">Their phone</label>
+                    <input id="v-phone" type="tel" inputmode="tel" [(ngModel)]="d.visit.personPhone" autocomplete="off" />
+                  </div>
+                  <div class="fld col-2">
+                    <span class="lbl">Relation to the property</span>
+                    <vp-choice label="Relation to the property" [options]="o.RELATIONS" [(value)]="d.visit.personRelation" />
+                  </div>
+                  <div class="fld col-2">
+                    <span class="lbl">Property identified by</span>
+                    <vp-multi label="Property identified by" [options]="o.IDENTIFIED_BY" [(value)]="d.visit.identifiedBy" />
+                  </div>
+                  <div class="fld col-2">
+                    <span class="lbl">Address at site matches the documents?</span>
+                    <vp-yes-no label="Address matches" [(value)]="d.visit.addressMatches" />
+                  </div>
+                  @if (d.visit.addressMatches === false) {
+                    <div class="fld col-2">
+                      <label for="v-addr">Address as found at site</label>
+                      <textarea id="v-addr" rows="2" [(ngModel)]="d.visit.addressAtSite"></textarea>
+                    </div>
+                  }
+                  <div class="fld col-2">
+                    <span class="lbl">Inspection</span>
+                    <vp-choice label="Inspection" [options]="o.ACCESS" [(value)]="d.visit.access" />
+                  </div>
+                  @if (d.visit.access && d.visit.access !== 'Full') {
+                    <div class="fld col-2">
+                      <label for="v-acc">Why could the inside not be inspected?</label>
+                      <input id="v-acc" [(ngModel)]="d.visit.accessNote" placeholder="Locked; owner away" />
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- ============ LOCATION ============ -->
+              @case ('location') {
+                <div class="form-grid">
+                  <div class="fld col-2"><span class="lbl">Locality</span><vp-choice label="Locality type" [options]="o.LOCALITY_TYPES" [(value)]="d.location.localityType" /></div>
+                  <div class="fld col-2"><span class="lbl">Class of locality</span><vp-choice label="Class of locality" [options]="o.LOCALITY_CLASSES" [(value)]="d.location.localityClass" /></div>
+                  <div class="fld col-2"><span class="lbl">Development of the area</span><vp-choice label="Development" [options]="o.DEVELOPMENT" [(value)]="d.location.development" /></div>
+                  <div class="fld">
+                    <label for="l-road">Approach road width (ft)</label>
+                    <input id="l-road" type="number" inputmode="decimal" min="0" [(ngModel)]="d.location.roadWidthFt" />
+                  </div>
+                  <div class="fld">
+                    <label for="l-land">Nearest landmark</label>
+                    <input id="l-land" [(ngModel)]="d.location.landmark" placeholder="Opp. VR Mall" />
+                  </div>
+                  <div class="fld col-2"><span class="lbl">Road surface</span><vp-choice label="Road surface" [options]="o.ROAD_TYPES" [(value)]="d.location.roadType" /></div>
+                  <div class="fld col-2"><span class="lbl">Facing</span><vp-choice label="Facing" [options]="o.FACING" [(value)]="d.location.facing" /></div>
+                  <div class="fld col-2"><span class="lbl">Corner plot?</span><vp-yes-no label="Corner plot" [(value)]="d.location.cornerPlot" /></div>
+                  <div class="fld col-2">
+                    <span class="lbl">Distance to (km)</span>
+                    <div class="three">
+                      <label class="mini">Railway station<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.stationKm" /></label>
+                      <label class="mini">Bus stop<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.busStopKm" /></label>
+                      <label class="mini">City centre<input type="number" inputmode="decimal" min="0" step="0.1" [(ngModel)]="d.location.cityCentreKm" /></label>
+                    </div>
+                  </div>
+                  <div class="fld col-2"><span class="lbl">Civic amenities</span><vp-multi label="Civic amenities" [options]="o.CIVIC" [(value)]="d.location.amenities" /></div>
+                  <div class="fld col-2">
+                    <span class="lbl">Negatives nearby <span class="hint">(affect value and lending)</span></span>
+                    <vp-multi label="Negatives nearby" [options]="o.NEGATIVES" [(value)]="d.location.negatives" />
+                  </div>
+                  <div class="fld col-2"><label for="l-note">Notes</label><textarea id="l-note" rows="2" [(ngModel)]="d.location.note"></textarea></div>
+                </div>
+              }
+
+              <!-- ============ BOUNDARIES ============ -->
+              @case ('boundaries') {
+                <p class="intro small muted">Write each side as found at site; copy "as per documents" from the sale deed (can be done in the office).</p>
+                <div class="bounds">
+                  @for (side of [['north', 'North'], ['south', 'South'], ['east', 'East'], ['west', 'West']]; track side[0]) {
+                    @let bnd = $any(d.boundaries)[side[0]];
+                    <div class="bound">
+                      <b class="side">{{ side[1] }}</b>
+                      <label class="mini">At site<input [(ngModel)]="bnd.atSite" placeholder="Road / Plot 15 / Open land" /></label>
+                      <label class="mini">As per documents<input [(ngModel)]="bnd.asPerDocuments" /></label>
+                      <vp-yes-no [label]="side[1] + ' matches'" yes="Matches" no="Differs" [(value)]="bnd.matches" />
+                    </div>
+                  }
+                </div>
+                <div class="form-grid top">
+                  <div class="fld col-2"><span class="lbl">Any encroachment?</span><vp-yes-no label="Encroachment" [(value)]="d.boundaries.encroachment" /></div>
+                  <div class="fld col-2">
+                    <label for="b-note">{{ d.boundaries.encroachment ? 'Describe the encroachment' : 'Notes' }}</label>
+                    <textarea id="b-note" rows="2" [(ngModel)]="d.boundaries.note"></textarea>
+                  </div>
+                </div>
+              }
+
+              <!-- ============ OCCUPANCY ============ -->
+              @case ('occupancy') {
+                <div class="form-grid">
+                  <div class="fld col-2"><span class="lbl">Occupied by</span><vp-choice label="Occupied by" [options]="o.OCCUPANCY" [(value)]="d.occupancy.occupiedBy" /></div>
+                  @if (d.occupancy.occupiedBy === 'Tenant' || d.occupancy.occupiedBy === 'PartlyRented') {
+                    <div class="fld"><label for="o-ten">Tenant's name</label><input id="o-ten" [(ngModel)]="d.occupancy.tenantName" /></div>
+                    <div class="fld"><label for="o-rent">Monthly rent (₹)</label><div class="fld-pre"><span>₹</span><input vpAmount id="o-rent" [(ngModel)]="d.occupancy.monthlyRent" /></div></div>
+                  }
+                  @if (d.occupancy.occupiedBy && d.occupancy.occupiedBy !== 'Vacant' && d.occupancy.occupiedBy !== 'UnderConstruction') {
+                    <div class="fld"><label for="o-since">Occupied for (years)</label><input id="o-since" type="number" inputmode="decimal" min="0" [(ngModel)]="d.occupancy.occupiedSinceYears" /></div>
+                  }
+                  <div class="fld col-2"><label for="o-note">Notes</label><textarea id="o-note" rows="2" [(ngModel)]="d.occupancy.note"></textarea></div>
+                </div>
+              }
+
+              <!-- ============ BUILDING ============ -->
+              @case ('building') {
+                <div class="form-grid">
+                  <div class="fld col-2">
+                    <span class="lbl">Structure</span>
+                    @if (detail()!.structureTypes.length) {
+                      <vp-choice label="Structure" [options]="structureOptions()" [(value)]="d.building.structureType" />
+                    } @else {
+                      <input aria-label="Structure" [(ngModel)]="d.building.structureType" placeholder="RCC Framed Structure" />
+                      <span class="hint">Add structure types in Rate Master → Depreciation to pick from a list.</span>
+                    }
+                  </div>
+                  <div class="fld"><label for="g-age">Age (years)</label><input id="g-age" type="number" inputmode="numeric" min="0" [(ngModel)]="d.building.ageYears" /></div>
+                  <div class="fld"><label for="g-floors">Total floors in building</label><input id="g-floors" type="number" inputmode="numeric" min="0" [(ngModel)]="d.building.totalFloors" /></div>
+                  <div class="fld"><label for="g-unit">Floor of this unit</label><input id="g-unit" [(ngModel)]="d.building.unitFloor" placeholder="9th" /></div>
+                  @if (d.occupancy.occupiedBy === 'UnderConstruction') {
+                    <div class="fld"><label for="g-done">Construction complete (%)</label><input id="g-done" type="number" inputmode="numeric" min="0" max="100" [(ngModel)]="d.building.completionPercent" /></div>
+                  }
+                  <div class="fld col-2"><span class="lbl">Quality of construction</span><vp-choice label="Quality" [options]="o.QUALITY" [(value)]="d.building.quality" /></div>
+                  <div class="fld col-2"><span class="lbl">Condition / maintenance</span><vp-choice label="Condition" [options]="o.CONDITION" [(value)]="d.building.condition" /></div>
+                </div>
+
+                <h4 class="sub">Specifications</h4>
+                <div class="form-grid">
+                  @for (f of specFields; track f[0]) {
+                    <div class="fld">
+                      <label [for]="'s-' + f[0]">{{ f[1] }}</label>
+                      <input [id]="'s-' + f[0]" [(ngModel)]="$any(d.building)[f[0]]" [attr.list]="'dl-' + f[0]" />
+                      <datalist [id]="'dl-' + f[0]">@for (x of o.SPEC_SUGGESTIONS[f[0]]; track x) { <option [value]="x"></option> }</datalist>
+                    </div>
+                  }
+                </div>
+
+                <h4 class="sub">Facilities</h4>
+                <div class="form-grid">
+                  <div class="fld"><span class="lbl">Lift</span><vp-yes-no label="Lift" [(value)]="d.building.lift" /></div>
+                  <div class="fld"><label for="g-slots">Parking slots</label><input id="g-slots" type="number" inputmode="numeric" min="0" [(ngModel)]="d.building.parkingSlots" /></div>
+                  <div class="fld col-2"><span class="lbl">Parking</span><vp-choice label="Parking" [options]="o.PARKING" [(value)]="d.building.parking" /></div>
+                  <div class="fld col-2"><span class="lbl">Amenities</span><vp-multi label="Amenities" [options]="o.BUILDING_AMENITIES" [(value)]="d.building.amenities" /></div>
+                  <div class="fld col-2"><span class="lbl">Defects seen</span><vp-multi label="Defects" [options]="o.DEFECTS" [(value)]="d.building.defects" /></div>
+                  <div class="fld col-2"><label for="g-note">Notes</label><textarea id="g-note" rows="2" [(ngModel)]="d.building.note"></textarea></div>
+                </div>
+              }
+
+              <!-- ============ MEASUREMENTS ============ -->
+              @case ('measurements') {
+                <div class="unit-row">
+                  <span class="lbl">Areas in</span>
+                  <vp-choice label="Area unit" [options]="[{ value: 'SqFt', label: 'sq.ft' }, { value: 'SqM', label: 'sq.m' }]" [(value)]="$any(d.measurements).unit" />
+                </div>
+
+                <div class="areas">
+                  <div class="arow head-row"><span></span><span>As per documents</span><span>Measured at site</span></div>
+                  @if (detail()!.landOnly || d.measurements.landAsPerDocuments != null || d.measurements.landMeasured != null || c.propertyType === 'IndependentHouse' || c.propertyType === 'Bungalow' || c.propertyType === 'RowHouse') {
+                    <div class="arow"><b>Land / plot</b>
+                      <input vpAmount [decimals]="2" aria-label="Land area as per documents" [(ngModel)]="d.measurements.landAsPerDocuments" />
+                      <input vpAmount [decimals]="2" aria-label="Land area measured" [(ngModel)]="d.measurements.landMeasured" />
+                    </div>
+                  }
+                  @if (!detail()!.landOnly) {
+                    <div class="arow"><b>Carpet</b>
+                      <input vpAmount [decimals]="2" aria-label="Carpet area as per documents" [(ngModel)]="d.measurements.carpetAsPerDocuments" />
+                      <input vpAmount [decimals]="2" aria-label="Carpet area measured" [(ngModel)]="d.measurements.carpetMeasured" />
+                    </div>
+                    <div class="arow"><b>Built-up</b>
+                      <input vpAmount [decimals]="2" aria-label="Built-up area as per documents" [(ngModel)]="d.measurements.builtUpAsPerDocuments" />
+                      <input vpAmount [decimals]="2" aria-label="Built-up area measured" [(ngModel)]="d.measurements.builtUpMeasured" />
+                    </div>
+                    <div class="arow"><b>Super built-up</b>
+                      <input vpAmount [decimals]="2" aria-label="Super built-up area as per documents" [(ngModel)]="d.measurements.superBuiltUpAsPerDocuments" />
+                      <span class="muted small na">Not measured</span>
+                    </div>
+                  }
+                  <span class="hint">All areas in {{ unit() }}. Documents' figures are filled from the property record where known.</span>
+                </div>
+
+                <h4 class="sub">Plot size</h4>
+                <div class="plot">
+                  <label class="mini">Length (ft)<input type="number" inputmode="decimal" min="0" [(ngModel)]="d.measurements.plotLengthFt" /></label>
+                  <span class="x">×</span>
+                  <label class="mini">Breadth (ft)<input type="number" inputmode="decimal" min="0" [(ngModel)]="d.measurements.plotBreadthFt" /></label>
+                  @if (plotArea(); as a) {
+                    <span class="small">= <b class="tnum">{{ a.toLocaleString('en-IN') }}</b> sq.ft</span>
+                    @if (canEdit()) { <button class="btn btn-soft btn-sm" type="button" (click)="usePlotArea()">Use as land measured</button> }
+                  }
+                </div>
+
+                @if (!detail()!.landOnly) {
+                  <h4 class="sub">Floor-wise <span class="hint">(houses and bungalows)</span></h4>
+                  @if (d.measurements.floors.length) {
+                    <div class="areas">
+                      @for (f of d.measurements.floors; track $index) {
+                        <div class="arow floor">
+                          <input [attr.aria-label]="'Floor ' + ($index + 1) + ' name'" [(ngModel)]="f.name" />
+                          <input vpAmount [decimals]="2" aria-label="As per documents" placeholder="Docs" [(ngModel)]="f.asPerDocuments" />
+                          <input vpAmount [decimals]="2" aria-label="Measured" placeholder="Measured" [(ngModel)]="f.measured" />
+                          <button class="btn-icon danger" type="button" aria-label="Remove floor" (click)="removeFloor($index)"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                      }
+                    </div>
+                  }
+                  @if (canEdit()) { <button class="btn btn-ghost btn-sm" type="button" (click)="addFloor()"><i class="fa-solid fa-plus"></i> Add floor</button> }
+                }
+                <div class="fld top"><label for="m-note">Notes</label><textarea id="m-note" rows="2" [(ngModel)]="d.measurements.note"></textarea></div>
+              }
+
+              <!-- ============ APPROVALS ============ -->
+              @case ('approvals') {
+                <div class="form-grid">
+                  <div class="fld col-2"><span class="lbl">Approved plan</span><vp-choice label="Approved plan" [options]="o.PLAN_SEEN" [(value)]="d.approvals.planSeen" /></div>
+                  @if (d.approvals.planSeen === 'Yes') {
+                    <div class="fld"><label for="a-auth">Approving authority</label><input id="a-auth" [(ngModel)]="d.approvals.planAuthority" placeholder="SMC / SUDA" /></div>
+                    <div class="fld"><label for="a-no">Plan / permission no.</label><input id="a-no" [(ngModel)]="d.approvals.planNumber" /></div>
+                  }
+                  @if (!detail()!.landOnly) {
+                    <div class="fld col-2"><span class="lbl">Deviation from the plan</span><vp-choice label="Deviation" [options]="o.DEVIATION" [(value)]="d.approvals.deviation" /></div>
+                    @if (d.approvals.deviation && d.approvals.deviation !== 'None') {
+                      <div class="fld col-2">
+                        <label for="a-dev">Describe the deviation</label>
+                        <textarea id="a-dev" rows="2" [(ngModel)]="d.approvals.deviationNote" placeholder="Extra room on terrace, balcony enclosed…"></textarea>
+                        <span class="hint">Add a photo tagged "Deviation".</span>
+                      </div>
+                    }
+                    <div class="fld col-2"><span class="lbl">Occupancy / BU certificate</span><vp-choice label="Occupancy certificate" [options]="o.OC" [(value)]="d.approvals.occupancyCertificate" /></div>
+                  }
+                  <div class="fld col-2"><label for="a-note">Notes</label><textarea id="a-note" rows="2" [(ngModel)]="d.approvals.note"></textarea></div>
+                </div>
+              }
+
+              <!-- ============ BANK ============ -->
+              @case ('bank') {
+                <p class="intro small muted">{{ c.bankName }} asks these questions on its report.</p>
+                <div class="qs">
+                  @for (q of detail()!.bankQuestions; track q.text) {
+                    @let a = answer(q.text);
+                    <div class="fld q">
+                      <span class="lbl">{{ q.text }}@if (q.required) { <span class="req">*</span> }</span>
+                      @switch (q.answerType) {
+                        @case ('YesNo') { <vp-choice [label]="q.text" [options]="o.YES_NO" [(value)]="a.answer" /> }
+                        @case ('Choice') { <vp-choice [label]="q.text" [options]="choiceOptions(q.options)" [(value)]="a.answer" /> }
+                        @case ('Number') { <input inputmode="decimal" [attr.aria-label]="q.text" [(ngModel)]="a.answer" /> }
+                        @default { <input [attr.aria-label]="q.text" [(ngModel)]="a.answer" /> }
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- ============ PHOTOS ============ -->
+              @case ('photos') {
+                @if (canEdit()) {
+                  <div class="add-row">
+                    <button class="btn btn-ghost btn-sm" type="button" (click)="galleryIn.click()"><i class="fa-solid fa-images"></i> Add from gallery</button>
+                    @if (queued().length) {
+                      <span class="small muted"><i class="fa-solid fa-cloud-arrow-up"></i> {{ waitingPhotos() }} waiting to upload{{ queue.uploading() ? '…' : '' }}</span>
+                    }
+                  </div>
+                }
+                <div class="tags">
+                  @for (t of photoTags; track t.value) {
+                    @let list = byTag().get(t.value) ?? [];
+                    @if (list.length || required.includes(t.value) || canEdit()) {
+                      <div class="tag" [class.need]="required.includes(t.value) && !list.length">
+                        <div class="tag-head">
+                          <i class="fa-solid" [class]="t.icon"></i>
+                          <b>{{ t.label }}</b>
+                          @if (required.includes(t.value)) { <span class="badge" [class]="list.length ? 'b-ok' : 'b-danger'">{{ list.length ? 'Done' : 'Needed' }}</span> }
+                          @if (canEdit()) {
+                            <button class="btn-icon shoot" type="button" [attr.aria-label]="'Take photo: ' + t.label" (click)="openCamera(cameraIn, t.value)">
+                              <i class="fa-solid fa-camera"></i>
+                            </button>
+                          }
+                        </div>
+                        @if (list.length) {
+                          <div class="thumbs">
+                            @for (p of list; track p.key) {
+                              <button type="button" class="thumb" (click)="viewing.set(p)" [attr.aria-label]="'Open ' + t.label + ' photo'">
+                                @if (p.server) { <vp-auth-img [photoId]="p.server.id" [alt]="t.label" /> } @else { <img [src]="p.localUrl" [alt]="t.label" /> }
+                                @if (p.queued) {
+                                  <span class="up" [class.bad]="p.queued.error">
+                                    <i class="fa-solid" [class]="p.queued.error ? 'fa-circle-exclamation' : isUploading(p) ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'"></i>
+                                  </span>
+                                }
+                              </button>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  }
+                </div>
+              }
+
+              <!-- ============ REMARKS ============ -->
+              @case ('remarks') {
+                <div class="form-grid">
+                  <div class="fld col-2"><span class="lbl">Marketability</span><vp-choice label="Marketability" [options]="o.MARKETABILITY" [(value)]="d.remarks.marketability" /></div>
+                  <div class="fld col-2">
+                    <label for="r-text">Observations</label>
+                    <textarea id="r-text" rows="6" [(ngModel)]="d.remarks.text" placeholder="3BHK flat on 9th floor, building about 6 years old, well maintained. Lift and power backup available. Fully developed residential area."></textarea>
+                    <span class="hint">These go into the report's remarks; the reviewer can edit them.</span>
+                  </div>
+                </div>
+              }
+
+              <!-- ============ REVIEW ============ -->
+              @case ('review') {
+                @if (submitted()) {
+                  <div class="done">
+                    <span class="big"><i class="fa-solid fa-circle-check"></i></span>
+                    <h3>Inspection submitted</h3>
+                    <p class="muted">By {{ detail()!.submittedByName }} · {{ shortDate(detail()!.submittedAt!) }}. The case is now at "Inspection Done".</p>
+                    <a class="btn btn-soft btn-sm" [routerLink]="['/assignments', c.assignmentId]">Open the assignment</a>
+                  </div>
+                } @else if (missing().length) {
+                  <p class="intro">Still needed before submitting:</p>
+                  <div class="review">
+                    @for (s of sections(); track s.key) {
+                      @if (missingBySection().get(s.key); as m) {
+                        <button type="button" class="rv" (click)="go(s.key)">
+                          <span class="rv-head"><i class="fa-solid" [class]="s.icon"></i> <b>{{ s.label }}</b><i class="fa-solid fa-chevron-right go"></i></span>
+                          @for (x of m; track x.message) { <span class="small">• {{ x.message }}</span> }
+                        </button>
+                      }
+                    }
+                  </div>
+                } @else {
+                  <div class="done">
+                    <span class="big ready"><i class="fa-solid fa-clipboard-check"></i></span>
+                    <h3>Everything needed is recorded</h3>
+                    <p class="muted">Submitting locks the inspection and moves {{ c.number }} to "Inspection Done".
+                      @if (far()) { <br /><span class="warn">The location captured is {{ metres(distance()!) }} from the property's saved location.</span> }
+                    </p>
+                  </div>
+                }
+                @if (!submitted() && waitingPhotos()) {
+                  <div class="alert-inline info"><i class="fa-solid fa-cloud-arrow-up"></i> {{ waitingPhotos() }} photo{{ waitingPhotos() === 1 ? ' is' : 's are' }} still uploading. Submit once they're up.</div>
+                }
+              }
+            }
+          </div>
+        </section>
+      </fieldset>
+
+      <!-- Back / Next -->
+      <div class="nav">
+        <button class="btn btn-ghost" type="button" (click)="move(-1)" [disabled]="index() === 0"><i class="fa-solid fa-arrow-left"></i> Back</button>
+        @if (step() === 'review') {
+          @if (!submitted() && canEdit()) {
+            <button class="btn btn-pri" type="button" [disabled]="missing().length > 0 || waitingPhotos() > 0 || submitting()" (click)="confirming.set(true)">
+              <i class="fa-solid fa-check-double"></i> Submit inspection
+            </button>
+          }
+        } @else {
+          <button class="btn btn-pri" type="button" (click)="move(1)">Next <i class="fa-solid fa-arrow-right"></i></button>
+        }
+      </div>
+    </main>
+  </div>
+
+  <input #cameraIn class="hidden-file" type="file" accept="image/*" capture="environment" (change)="picked($event, true)" />
+  <input #galleryIn class="hidden-file" type="file" accept="image/*" multiple (change)="picked($event, false)" />
+} @else {
+  <div class="card empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Opening the inspection…</span></div>
+}
+
+<!-- What does the photo show? -->
+@if (tagging(); as t) {
+  <vp-dialog [title]="t.files.length === 1 ? 'What does this photo show?' : 'What do these ' + t.files.length + ' photos show?'" icon="fa-camera" (closed)="tagging.set(null)">
+    <div class="tag-pick">
+      @for (x of photoTags; track x.value) {
+        <button type="button" class="tp" [class.on]="t.tag === x.value" (click)="tagging.set({ files: t.files, tag: x.value, caption: t.caption })">
+          <i class="fa-solid" [class]="x.icon"></i> {{ x.label }}
+        </button>
+      }
+    </div>
+    <div class="fld top">
+      <label for="t-cap">Caption <span class="hint">(optional)</span></label>
+      <input id="t-cap" [ngModel]="t.caption" (ngModelChange)="t.caption = $event" placeholder="Living room, east wall crack…" />
+    </div>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="tagging.set(null)">Cancel</button>
+      <button class="btn btn-pri" type="button" (click)="confirmTag()"><i class="fa-solid fa-check"></i> Save photo{{ t.files.length === 1 ? '' : 's' }}</button>
+    </ng-container>
+  </vp-dialog>
+}
+
+<!-- Photo viewer -->
+@if (viewing(); as p) {
+  <vp-dialog [title]="tagMeta(p.tag).label" [subtitle]="shortDate(p.takenAt) + (p.server ? ' · ' + p.server.takenByName : ' · waiting to upload')" icon="fa-image" (closed)="viewing.set(null)">
+    <div class="viewer">
+      @if (p.server) { <vp-auth-img [photoId]="p.server.id" [thumb]="false" [alt]="tagMeta(p.tag).label" /> } @else { <img [src]="p.localUrl" [alt]="tagMeta(p.tag).label" /> }
+    </div>
+    @if (p.queued?.error) { <div class="alert-inline danger top"><i class="fa-solid fa-circle-exclamation"></i> {{ p.queued!.error }}</div> }
+    <p class="small muted meta">
+      @if (p.latitude != null) {
+        <i class="fa-solid fa-location-dot"></i> <a [href]="mapLink(p.latitude, p.longitude!)" target="_blank" rel="noopener">{{ p.latitude }}, {{ p.longitude }}</a>
+        @if (photoDistance(p); as m) { · {{ metres(m) }} from the property }
+      } @else { <i class="fa-solid fa-location-dot"></i> No location on this photo }
+    </p>
+    @if (canEdit()) {
+      <div class="tag-pick small-pick">
+        @for (x of photoTags; track x.value) {
+          <button type="button" class="tp" [class.on]="p.tag === x.value" (click)="viewing.set({ ...p, tag: x.value })">{{ x.label }}</button>
+        }
+      </div>
+      <div class="fld top"><label for="p-cap">Caption</label><input id="p-cap" [ngModel]="p.caption" (ngModelChange)="viewing.set({ ...p, caption: $event })" /></div>
+    } @else if (p.caption) {
+      <p>{{ p.caption }}</p>
+    }
+    <ng-container footer>
+      @if (canEdit()) {
+        <button class="btn btn-ghost danger-text" type="button" (click)="removePhoto(p)"><i class="fa-solid fa-trash-can"></i> Remove</button>
+        @if (p.queued?.error) { <button class="btn btn-ghost" type="button" (click)="retryUpload(p); viewing.set(null)">Try again</button> }
+        <button class="btn btn-pri" type="button" (click)="retag(p, p.tag, p.caption)"><i class="fa-solid fa-check"></i> Save</button>
+      } @else {
+        <button class="btn btn-pri" type="button" (click)="viewing.set(null)">Close</button>
+      }
+    </ng-container>
+  </vp-dialog>
+}
+
+@if (confirming()) {
+  <vp-dialog title="Submit the inspection?" [subtitle]="c()?.number ?? ''" icon="fa-check-double" size="sm" (closed)="confirming.set(false)">
+    <p class="confirm">It will be locked and the case moves to "Inspection Done". If something needs changing later, the office can send the case back.</p>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="confirming.set(false)">Not yet</button>
+      <button class="btn btn-pri" type="button" [disabled]="submitting()" (click)="submit()">
+        <i class="fa-solid" [class]="submitting() ? 'fa-spinner fa-spin' : 'fa-check-double'"></i> Submit
+      </button>
+    </ng-container>
+  </vp-dialog>
+}

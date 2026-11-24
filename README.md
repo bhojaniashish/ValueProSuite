@@ -19,8 +19,23 @@ masters or typed, valuer and reviewer, the 7-stage workflow with a timeline, a s
 board views. **Rate Master** (Phase 2): location (market) rates per locality and zone, circle / Jantri / Ready Reckoner
 rates, construction rates (CPWD / PWD / bank) and depreciation rules (straight line or written-down value, with an
 age-band table). Rates carry an "effective from" date: a newer date keeps the old rate as history, and the current
-rate is the latest one already in force. Rates import from CSV or Excel with the same row-by-row check. Other
-sidebar modules show which phase builds them.
+rate is the latest one already in force. Rates import from CSV or Excel with the same row-by-row check.
+**Site Inspection** (Phase 2): a phone-first, step-by-step site visit form (visit and person met, locality, boundaries
+as per documents vs at site, occupancy, building and specifications, measurements, approvals and deviations, the bank's
+own questions, tagged photos, remarks). It captures the location at site and flags it when it is more than 300 m from
+the property's saved location. Other sidebar modules show which phase builds them.
+
+## Site inspection rules
+
+- One inspection per assignment. The assigned valuer, or someone with Assignments: Manage (plus Inspections: Manage), records it.
+- It can be edited while the case is New or Site Visit Scheduled. Submitting checks everything required (location, person met,
+  boundaries, occupancy, building details unless land only, a measured area, approvals, required bank questions, front and
+  approach-road photos), locks it and moves the case to "Inspection Done". That stage can only be reached this way.
+  Sending the case back to "Site Visit Scheduled" makes it editable again.
+- Every change autosaves. Each save carries a version number; a save from an older copy (another phone) is refused, not merged.
+- Works with weak signal: the form is kept on the phone (localStorage) and photos wait in IndexedDB until they upload.
+  Photos are resized on the phone (1600 px JPEG plus a 360 px thumbnail) and a retried upload is not saved twice.
+- Recorded details are stored as one JSON document (`Inspections.Data`), so fields can be added as banks' formats arrive.
 
 ## Assignment workflow rules
 

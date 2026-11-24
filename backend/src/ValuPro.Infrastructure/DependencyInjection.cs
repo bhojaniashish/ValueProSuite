@@ -122,6 +122,7 @@ public static class DependencyInjection
         services.AddScoped<IAssignmentService, AssignmentService>();
         services.AddScoped<IPropertyService, PropertyService>();
         services.AddScoped<Application.Rates.IRateService, Rates.RateService>();
+        services.AddScoped<Application.Inspections.IInspectionService, Inspections.InspectionService>();
 
         return services;
     }

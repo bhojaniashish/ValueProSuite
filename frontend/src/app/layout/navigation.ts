@@ -30,7 +30,7 @@ export const NAVIGATION: NavGroup[] = [
     label: 'Operations',
     items: [
       { path: 'assignments', label: 'Assignments', icon: 'fa-clipboard-list', permission: Permission.assignmentsView, phase: 1, ready: true, summary: 'Valuation cases through the 7-stage workflow, list and Kanban views.' },
-      { path: 'inspection', label: 'Site Inspection', icon: 'fa-location-crosshairs', permission: Permission.inspectionsView, phase: 2, summary: 'Checklist, observations and GPS capture, built for phones.' },
+      { path: 'inspection', label: 'Site Inspection', icon: 'fa-location-crosshairs', permission: Permission.inspectionsView, phase: 2, ready: true, summary: 'Checklist, observations and GPS capture, built for phones.' },
       { path: 'valuation', label: 'Valuation Engine', icon: 'fa-calculator', permission: Permission.valuationView, phase: 2, summary: 'Land and floor-wise building valuation, depreciation, final values.' },
       { path: 'reports', label: 'Reports', icon: 'fa-file-contract', permission: Permission.reportsView, phase: 3, summary: 'Five report types from templates, review, signature, PDF/Word.' },
       { path: 'photos', label: 'Photos', icon: 'fa-images', permission: Permission.inspectionsView, phase: 2, summary: 'Geo-tagged site photos by category.' },

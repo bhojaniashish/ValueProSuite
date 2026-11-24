@@ -33,6 +33,7 @@ export const Permission = {
   assignmentsView: 'assignments.view',
   assignmentsManage: 'assignments.manage',
   inspectionsView: 'inspections.view',
+  inspectionsManage: 'inspections.manage',
   valuationView: 'valuation.view',
   reportsView: 'reports.view',
   billingView: 'billing.view',

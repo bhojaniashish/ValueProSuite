@@ -7,6 +7,7 @@ using ValuPro.Application.Clients;
 using ValuPro.Application.Common;
 using ValuPro.Application.Properties;
 using ValuPro.Domain.Assignments;
+using ValuPro.Domain.Inspections;
 using ValuPro.Domain.Banks;
 using ValuPro.Domain.Clients;
 using ValuPro.Domain.Properties;
@@ -151,6 +152,8 @@ public class AssignmentTests : IAsyncLifetime
         Assert.Equal(AssignmentStatus.SiteVisitScheduled, moved.Assignment.Status);
         Assert.Equal("Site visit scheduled for 14 Jun, 11:00 AM", moved.Events.First().Title);
         Assert.Equal(AssignmentStatus.InspectionDone, moved.Moves.Next);
+        Assert.False(moved.Moves.CanMoveNext); // only a submitted site inspection moves it on
+        Assert.Equal(ErrorKind.Forbidden, (await MoveAsync(a.Assignment.Id, AssignmentStatus.InspectionDone)).Error!.Kind);
     }
 
     [Fact]
@@ -175,6 +178,8 @@ public class AssignmentTests : IAsyncLifetime
     {
         var a = await CreateAsync(Req() with { SiteVisitAt = DateTimeOffset.UtcNow });
         var id = a.Assignment.Id;
+        Db.Add(new Inspection { AssignmentId = id, StartedByName = "Test", Status = InspectionStatus.Submitted });
+        await Db.SaveChangesAsync();
         foreach (var s in new[] { AssignmentStatus.SiteVisitScheduled, AssignmentStatus.InspectionDone, AssignmentStatus.DraftPrepared, AssignmentStatus.QualityReview })
             Assert.True((await MoveAsync(id, s)).IsSuccess);
 

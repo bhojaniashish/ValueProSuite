@@ -39,6 +39,7 @@ export class AssignmentDetailPage implements OnInit {
   protected readonly deleting = signal(false);
   protected readonly move = signal<{ kind: MoveKind; to: AssignmentStatus } | null>(null);
   protected readonly canViewProperties = computed(() => this.auth.hasPermission(Permission.propertiesView));
+  protected readonly canViewInspection = computed(() => this.auth.hasPermission(Permission.inspectionsView));
 
   protected readonly a = computed(() => this.detail()!.assignment);
   protected readonly stageIndex = computed(() => STAGES.indexOf(this.a().status));
