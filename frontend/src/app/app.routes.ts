@@ -15,6 +15,7 @@ const BUILT: Record<string, Routes[number]['loadComponent']> = {
   inspection: () => import('./features/inspections/inspections-page').then((m) => m.InspectionsPage),
   photos: () => import('./features/photos/photos-page').then((m) => m.PhotosPage),
   documents: () => import('./features/documents/documents-page').then((m) => m.DocumentsPage),
+  valuation: () => import('./features/valuations/valuations-page').then((m) => m.ValuationsPage),
 };
 
 const moduleRoutes: Routes = NAVIGATION.flatMap((g) => g.items)
@@ -95,6 +96,13 @@ export const routes: Routes = [
             canActivate: [permissionGuard],
             data: { permission: Permission.assignmentsView },
             loadComponent: () => import('./features/documents/case-documents-page').then((m) => m.CaseDocumentsPage),
+          },
+          {
+            path: 'valuation/:id',
+            title: 'Valuation · ValuPro',
+            canActivate: [permissionGuard],
+            data: { permission: Permission.valuationView },
+            loadComponent: () => import('./features/valuations/valuation-page').then((m) => m.ValuationPage),
           },
           ...moduleRoutes,
           {

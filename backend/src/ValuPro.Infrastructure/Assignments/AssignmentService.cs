@@ -7,6 +7,7 @@ using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Banks;
 using ValuPro.Domain.Clients;
 using ValuPro.Domain.Inspections;
+using ValuPro.Domain.Valuations;
 using ValuPro.Domain.Properties;
 using ValuPro.Domain.Security;
 using ValuPro.Domain.Settings;
@@ -157,8 +158,12 @@ public sealed class AssignmentService(
         var a = row.A;
         return new AssignmentDetail(ToItem(row), a.BankReference, a.Purpose, a.ApplicantPhone, a.ReviewerId, reviewer, a.SiteVisitAt,
             a.Remarks, [.. events.Select(e => new AssignmentEventItem(e.At, e.ByName, e.FromStatus, e.ToStatus, e.Title, e.Note))],
-            Moves(a, await InspectionSubmittedAsync(a.Id, ct)));
+            Moves(a, await InspectionSubmittedAsync(a.Id, ct), await ValuedAsync(a.Id, ct)));
     }
+
+    /// <summary>"Draft Prepared" needs a saved valuation.</summary>
+    private Task<bool> ValuedAsync(Guid assignmentId, CancellationToken ct) =>
+        db.Set<Valuation>().AnyAsync(v => v.AssignmentId == assignmentId, ct);
 
     /// <summary>The case only reaches "Inspection Done" through a submitted site inspection.</summary>
     private Task<bool> InspectionSubmittedAsync(Guid assignmentId, CancellationToken ct) =>
@@ -207,7 +212,7 @@ public sealed class AssignmentService(
         var a = await db.Set<Assignment>().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (a is null) return Error.NotFound("Assignment not found.");
 
-        var moves = Moves(a, await InspectionSubmittedAsync(a.Id, ct));
+        var moves = Moves(a, await InspectionSubmittedAsync(a.Id, ct), await ValuedAsync(a.Id, ct));
         var kind = AssignmentWorkflow.Classify(a.Status, r.To);
         var note = string.IsNullOrWhiteSpace(r.Note) ? null : r.Note.Trim();
         var label = AssignmentWorkflow.Label(r.To);
@@ -333,7 +338,7 @@ public sealed class AssignmentService(
     /// Managers can do everything. The assigned valuer and reviewer can move their own case through the field and drafting stages.
     /// Passing quality review needs report-approval permission; marking invoiced needs billing or assignment management.
     /// </summary>
-    private AllowedMoves Moves(Assignment a, bool inspectionSubmitted = false)
+    private AllowedMoves Moves(Assignment a, bool inspectionSubmitted = false, bool valued = false)
     {
         var mineAsValuer = me.UserId == a.ValuerId;
         var mineAsReviewer = a.ReviewerId is not null && me.UserId == a.ReviewerId;
@@ -347,6 +352,8 @@ public sealed class AssignmentService(
         else if (!canWork) blocked = "Only the assigned valuer, the reviewer or a manager can move this assignment.";
         else if (next == AssignmentStatus.InspectionDone && !inspectionSubmitted)
             blocked = "Submit the site inspection: that moves the case to \"Inspection Done\".";
+        else if (next == AssignmentStatus.DraftPrepared && !valued)
+            blocked = "Save the valuation before preparing the draft report.";
         else if (next == AssignmentStatus.Submitted && !me.HasPermission(Permissions.Reports.Approve))
             blocked = "Approving after quality review needs the 'Reports: Approve' permission (Reviewer or Admin).";
         else if (next == AssignmentStatus.InvoiceGenerated && !CanManage && !me.HasPermission(Permissions.Billing.Manage))

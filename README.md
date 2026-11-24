@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 2 in progress** (Phase 1 complete). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 2 complete** (Phases 0–2 done; Phase 3 Reports next). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -31,6 +31,11 @@ with a photos.csv of times and locations. Camera photos get a date/time/location
 with its number, date, issuing office and whether the original was seen, a copy only, or it was not provided (with the
 reason, as reports state). Files (PDF or photo) are optional and keep earlier versions. Documents from earlier cases on
 the same property can be reused. A firm-wide list flags documents expiring within 30 days or already expired.
+**Valuation Engine** (Phase 2): composite rate (flats, offices, shops) or land + depreciated building (houses, plots,
+sheds), with ± adjustments and extras. It is pre-filled from the inspection (lower of measured and document areas,
+structure, age), the Rate Master (locality band, circle rate, construction rate, depreciation rule) and the bank's rules
+(realizable / distress %, depreciation method, rate basis). It gives fair market, realizable, distress, guideline
+(government) and insurance values, the value in words (lakh / crore), the working, and warnings banks ask about.
 Other sidebar modules show which phase builds them.
 
 ## Site inspection rules
@@ -61,6 +66,18 @@ Other sidebar modules show which phase builds them.
 - "Not provided" needs a reason. Uploading a file to a not-provided document makes it "copy only".
 - A new upload is a new version; older versions stay and can be opened. Removing a document keeps its files in history.
 - Reusing a document from an earlier case of the same property lists the same stored files; nothing is copied.
+
+## Valuation rules
+
+- Values are always worked out on the server (`ValuationCalculator`), both for the live figures and when saving, so the
+  page and the saved values can't disagree. Market value is rounded to the nearest ₹1,000; realizable and distress
+  values are percentages of it, also rounded to ₹1,000. Guideline value = area ÷ 10.7639 × circle rate per sq.m.
+- Land + building: land area × rate, plus each floor's area × construction rate less depreciation (straight line or
+  written-down value, from age, life and salvage %). Insurance value is the rebuild cost without land.
+- Warnings: market value more than 10% below the guideline value, a rate outside the Rate Master band, measured and
+  document areas more than 10% apart.
+- The case's valuer or reviewer, or a manager (with Valuation: Manage), can change it until the report is Submitted.
+  A save from an older copy is refused. "Draft Prepared" needs a saved valuation.
 
 ## Assignment workflow rules
 

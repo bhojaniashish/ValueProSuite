@@ -8,6 +8,7 @@ using ValuPro.Application.Common;
 using ValuPro.Application.Properties;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Inspections;
+using ValuPro.Domain.Valuations;
 using ValuPro.Domain.Banks;
 using ValuPro.Domain.Clients;
 using ValuPro.Domain.Properties;
@@ -174,11 +175,30 @@ public class AssignmentTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Draft_prepared_needs_a_saved_valuation()
+    {
+        var a = await CreateAsync(Req() with { SiteVisitAt = DateTimeOffset.UtcNow });
+        var id = a.Assignment.Id;
+        Db.Add(new Inspection { AssignmentId = id, StartedByName = "Test", Status = InspectionStatus.Submitted });
+        await Db.SaveChangesAsync();
+        await MoveAsync(id, AssignmentStatus.SiteVisitScheduled);
+        var done = (await MoveAsync(id, AssignmentStatus.InspectionDone)).Value!;
+
+        Assert.False(done.Moves.CanMoveNext);
+        Assert.Equal(ErrorKind.Forbidden, (await MoveAsync(id, AssignmentStatus.DraftPrepared)).Error!.Kind);
+
+        Db.Add(new Valuation { AssignmentId = id, ValuedByName = "Test", FairMarketValue = 85_00_000 });
+        await Db.SaveChangesAsync();
+        Assert.Equal(AssignmentStatus.DraftPrepared, (await MoveAsync(id, AssignmentStatus.DraftPrepared)).Value!.Assignment.Status);
+    }
+
+    [Fact]
     public async Task Approving_after_quality_review_needs_report_approval()
     {
         var a = await CreateAsync(Req() with { SiteVisitAt = DateTimeOffset.UtcNow });
         var id = a.Assignment.Id;
         Db.Add(new Inspection { AssignmentId = id, StartedByName = "Test", Status = InspectionStatus.Submitted });
+        Db.Add(new Valuation { AssignmentId = id, ValuedByName = "Test", FairMarketValue = 1 });
         await Db.SaveChangesAsync();
         foreach (var s in new[] { AssignmentStatus.SiteVisitScheduled, AssignmentStatus.InspectionDone, AssignmentStatus.DraftPrepared, AssignmentStatus.QualityReview })
             Assert.True((await MoveAsync(id, s)).IsSuccess);

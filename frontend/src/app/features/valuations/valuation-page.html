@@ -1,0 +1,295 @@
+@if (error()) {
+  <div class="card empty">
+    <i class="fa-solid fa-triangle-exclamation"></i><b>Could not open the valuation</b><span>{{ error() }}</span>
+    <a class="btn btn-soft btn-sm" routerLink="/valuation">Back to valuations</a>
+  </div>
+} @else if (detail(); as d) {
+  <div class="head card">
+    <a class="back" routerLink="/valuation" aria-label="Back to valuations"><i class="fa-solid fa-arrow-left"></i></a>
+    <div class="who">
+      <div class="l1">
+        <span class="bank" [style.background]="d.case.bankColor">{{ d.case.bankShortCode }}</span>
+        <a class="num" [routerLink]="['/assignments', d.case.assignmentId]">{{ d.case.number }}</a>
+        @if (d.case.propertyType) { <span class="badge b-gray">{{ propertyType(d.case.propertyType).label }}</span> }
+      </div>
+      <b>{{ d.case.applicantName }}</b>
+      <span class="small muted">{{ d.case.propertySummary }}</span>
+    </div>
+    <div class="state small">
+      @if (dirty()) { <span class="unsaved"><i class="fa-solid fa-pen"></i> Not saved</span> }
+      @else if (d.saved) { <span class="ok"><i class="fa-solid fa-circle-check"></i> Saved {{ when(d.valuedAt!) }} · {{ d.valuedByName }}</span> }
+      @else { <span class="muted"><i class="fa-regular fa-circle"></i> Not valued yet</span> }
+    </div>
+  </div>
+
+  @if (!d.canEdit && d.readOnlyReason) { <div class="alert-inline info"><i class="fa-solid fa-lock"></i> {{ d.readOnlyReason }}</div> }
+  @if (d.suggestions.length) {
+    <details class="card notes" open>
+      <summary><i class="fa-solid fa-wand-magic-sparkles"></i> Starting figures were filled in for you. Check them before saving.</summary>
+      <ul>@for (s of d.suggestions; track s) { <li>{{ s }}</li> }</ul>
+    </details>
+  }
+
+  <div class="layout">
+    <fieldset class="inputs" [disabled]="!canEdit()" (input)="changed()" (change)="changed()">
+      <!-- Method -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Method</h3></div>
+        <div class="sec-body">
+          <vp-choice label="Valuation method" [options]="methodOptions" [value]="i.method" (valueChange)="setMethod($event)" />
+        </div>
+      </section>
+
+      <!-- Market rate -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Market rate</h3><span class="small muted">From the Rate Master, or type your own</span></div>
+        <div class="sec-body form-grid">
+          <div class="fld col-2">
+            <label for="v-loc">Locality in Rate Master</label>
+            <select id="v-loc" [ngModel]="locationId() ?? ''" (ngModelChange)="pickLocation($event)" [ngModelOptions]="{ standalone: true }">
+              <option value="">Not from the Rate Master</option>
+              @for (l of d.options.locations; track l.id) {
+                <option [value]="l.id">{{ l.locality }}, {{ l.city }} · {{ inr(l.minRate) }}–{{ inr(l.maxRate) }}/sq.ft</option>
+              }
+            </select>
+            @if (!d.options.locations.length) { <span class="hint">No current rates for {{ d.case.city ?? 'this city' }}. Add them in Rate Master.</span> }
+          </div>
+
+          @if (i.method === 'Composite') {
+            <div class="fld col-2">
+              <span class="lbl">Area used</span>
+              <vp-choice label="Area used" [options]="bases" [value]="i.areaBasis" (valueChange)="i.areaBasis = $any($event) ?? 'Carpet'; changed()" />
+            </div>
+            <div class="fld">
+              <label for="v-area">{{ areaLabel() }} area (sq.ft)</label>
+              <input vpAmount [decimals]="2" id="v-area" name="area" [(ngModel)]="i.areaSqFt" />
+            </div>
+            <div class="fld">
+              <label for="v-rate">Composite rate (₹ / sq.ft)</label>
+              <div class="fld-pre"><span>₹</span><input vpAmount id="v-rate" name="rate" [(ngModel)]="i.compositeRatePerSqFt" /></div>
+              @if (i.marketRateMin && i.marketRateMax) { <span class="hint">Rate Master band {{ inr(i.marketRateMin) }}–{{ inr(i.marketRateMax) }}</span> }
+            </div>
+          } @else {
+            <div class="fld">
+              <label for="v-land">Land area (sq.ft)</label>
+              <input vpAmount [decimals]="2" id="v-land" name="land" [(ngModel)]="i.landAreaSqFt" />
+            </div>
+            <div class="fld">
+              <label for="v-lrate">Land rate (₹ / sq.ft)</label>
+              <div class="fld-pre"><span>₹</span><input vpAmount id="v-lrate" name="lrate" [(ngModel)]="i.landRatePerSqFt" /></div>
+              @if (i.marketRateMin && i.marketRateMax) { <span class="hint">Rate Master band {{ inr(i.marketRateMin) }}–{{ inr(i.marketRateMax) }}</span> }
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Building / construction -->
+      <section class="card sec">
+        <div class="sec-head"><h3>{{ i.method === 'Composite' ? 'Rebuild cost (for insurance)' : 'Building' }}</h3>
+          <span class="small muted">{{ i.method === 'Composite' ? 'Not part of the market value' : 'Replacement cost less depreciation' }}</span></div>
+        <div class="sec-body">
+          <div class="form-grid">
+            <div class="fld">
+              <label for="v-con">Construction rate from</label>
+              <select id="v-con" [ngModel]="constructionId() ?? ''" (ngModelChange)="applyConstruction($event || null, column())" [ngModelOptions]="{ standalone: true }">
+                <option value="">Type the rate myself</option>
+                @for (c of d.options.construction; track c.id) { <option [value]="c.id">{{ c.constructionType }}</option> }
+              </select>
+            </div>
+            @if (construction(); as con) {
+              <div class="fld">
+                <span class="lbl">Schedule</span>
+                <vp-choice label="Rate schedule" [options]="columns" [value]="column()" (valueChange)="applyConstruction(constructionId(), $any($event) ?? column())" />
+                <span class="hint">CPWD {{ inr(con.cpwdPerSqFt) }} · PWD {{ inr(con.pwdPerSqFt) }} · Bank {{ inr(con.bankPerSqFt) }} per sq.ft
+                  @if (d.bank.rateBasis === 'BankRates') { · {{ d.case.bankShortCode }} wants bank rates }</span>
+              </div>
+            }
+          </div>
+
+          @if (i.method === 'Composite') {
+            <div class="form-grid gap">
+              <div class="fld"><label for="v-bu">Built-up area (sq.ft)</label><input vpAmount [decimals]="2" id="v-bu" name="bu" [(ngModel)]="i.builtUpSqFt" /></div>
+              <div class="fld"><label for="v-cr">Construction rate (₹ / sq.ft)</label><div class="fld-pre"><span>₹</span><input vpAmount id="v-cr" name="cr" [(ngModel)]="i.constructionRatePerSqFt" /></div></div>
+            </div>
+          } @else {
+            <div class="lines gap">
+              @for (b of i.building; track $index) {
+                <div class="line">
+                  <div class="fld name"><label [for]="'b-n' + $index">Floor / structure</label><input [id]="'b-n' + $index" [name]="'bn' + $index" [(ngModel)]="b.label" /></div>
+                  <div class="fld"><label [for]="'b-a' + $index">Area (sq.ft)</label><input vpAmount [decimals]="2" [id]="'b-a' + $index" [name]="'ba' + $index" [(ngModel)]="b.areaSqFt" /></div>
+                  <div class="fld"><label [for]="'b-r' + $index">Rate (₹/sq.ft)</label><input vpAmount [id]="'b-r' + $index" [name]="'br' + $index" [(ngModel)]="b.ratePerSqFt" /></div>
+                  <div class="fld sm"><label [for]="'b-g' + $index">Age (yrs)</label><input vpAmount [decimals]="1" [id]="'b-g' + $index" [name]="'bg' + $index" [(ngModel)]="b.ageYears" /></div>
+                  <div class="fld sm"><label [for]="'b-l' + $index">Life (yrs)</label><input vpAmount [id]="'b-l' + $index" [name]="'bl' + $index" [(ngModel)]="b.lifeYears" /></div>
+                  <div class="fld sm"><label [for]="'b-s' + $index">Salvage %</label><input vpAmount [decimals]="2" [id]="'b-s' + $index" [name]="'bs' + $index" [(ngModel)]="b.salvagePercent" /></div>
+                  <div class="fld wide"><label [for]="'b-m' + $index">Depreciation</label>
+                    <select [id]="'b-m' + $index" [name]="'bm' + $index" [(ngModel)]="b.method">@for (m of methods; track m.value) { <option [ngValue]="m.value">{{ m.label }}</option> }</select>
+                  </div>
+                  @if (d.options.depreciation.length) {
+                    <div class="fld wide"><label [for]="'b-t' + $index">Life and salvage from rule</label>
+                      <select [id]="'b-t' + $index" [name]="'bt' + $index" [ngModel]="''" (ngModelChange)="useStructure(b, $event)">
+                        <option value="">Choose structure…</option>
+                        @for (r of d.options.depreciation; track r.structureType) { <option [value]="r.structureType">{{ r.structureType }} ({{ r.lifeYears }} yrs, {{ r.salvagePercent }}%)</option> }
+                      </select>
+                    </div>
+                  }
+                  @if (canEdit()) { <button class="btn-icon danger rm" type="button" aria-label="Remove this line" (click)="removeLine($index)"><i class="fa-solid fa-xmark"></i></button> }
+                </div>
+              }
+              @if (canEdit()) { <button class="btn btn-ghost btn-sm" type="button" (click)="addLine()"><i class="fa-solid fa-plus"></i> Add floor / structure</button> }
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Adjustments & extras -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Adjustments &amp; extras</h3><span class="small muted">± % on the value, and amounts added on top</span></div>
+        <div class="sec-body">
+          @if (canEdit()) {
+            <div class="presets">
+              @for (p of adjustmentPresets; track p.label) {
+                @if (!hasPreset(p.label)) {
+                  <button type="button" class="preset" (click)="addAdjustment(p.label, p.percent)">{{ p.label }} {{ p.percent > 0 ? '+' : '' }}{{ p.percent }}%</button>
+                }
+              }
+            </div>
+          }
+          @for (a of i.adjustments; track $index) {
+            <div class="row2">
+              <div class="fld grow"><label [for]="'a-l' + $index">Adjustment</label><input [id]="'a-l' + $index" [name]="'al' + $index" [(ngModel)]="a.label" /></div>
+              <div class="fld pct"><label [for]="'a-p' + $index">%</label><input type="number" inputmode="decimal" step="0.5" min="-50" max="50" [id]="'a-p' + $index" [name]="'ap' + $index" [(ngModel)]="a.percent" /></div>
+              @if (canEdit()) { <button class="btn-icon danger" type="button" aria-label="Remove adjustment" (click)="remove(i.adjustments, $index)"><i class="fa-solid fa-xmark"></i></button> }
+            </div>
+          }
+          @if (canEdit()) { <button class="btn btn-ghost btn-sm" type="button" (click)="addAdjustment()"><i class="fa-solid fa-plus"></i> Other adjustment</button> }
+
+          <h4 class="sub">Extras</h4>
+          @for (x of i.extras; track $index) {
+            <div class="row2">
+              <div class="fld grow"><label [for]="'x-l' + $index">Item</label><input [id]="'x-l' + $index" [name]="'xl' + $index" [(ngModel)]="x.label" /></div>
+              <div class="fld amt"><label [for]="'x-a' + $index">Amount</label><div class="fld-pre"><span>₹</span><input vpAmount [id]="'x-a' + $index" [name]="'xa' + $index" [(ngModel)]="x.amount" /></div></div>
+              @if (canEdit()) { <button class="btn-icon danger" type="button" aria-label="Remove item" (click)="remove(i.extras, $index)"><i class="fa-solid fa-xmark"></i></button> }
+            </div>
+          }
+          @if (canEdit()) {
+            <div class="presets">
+              @for (x of extraPresets; track x) { <button type="button" class="preset" (click)="addExtra(x)"><i class="fa-solid fa-plus"></i> {{ x }}</button> }
+              <button type="button" class="preset" (click)="addExtra()"><i class="fa-solid fa-plus"></i> Other</button>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Government value & bank -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Government value &amp; bank factors</h3></div>
+        <div class="sec-body form-grid">
+          <div class="fld">
+            <label for="v-cir">Circle / Jantri rate (₹ / sq.m)</label>
+            <div class="fld-pre"><span>₹</span><input vpAmount id="v-cir" name="cir" [(ngModel)]="i.circleRatePerSqM" /></div>
+          </div>
+          <div class="fld">
+            <label for="v-ga">On area (sq.ft)</label>
+            <input vpAmount [decimals]="2" id="v-ga" name="ga" [(ngModel)]="i.guidelineAreaSqFt" />
+            <span class="hint">= {{ guidelineSqM() }} sq.m</span>
+          </div>
+          <div class="fld">
+            <label for="v-real">Realizable value (% of market)</label>
+            <div class="fld-suf"><input vpAmount [decimals]="2" id="v-real" name="real" [(ngModel)]="i.realizablePercent" /><span>%</span></div>
+            <span class="hint">{{ d.case.bankShortCode }} rule: {{ d.bank.realizablePercent }}%</span>
+          </div>
+          <div class="fld">
+            <label for="v-dis">Distress value (% of market)</label>
+            <div class="fld-suf"><input vpAmount [decimals]="2" id="v-dis" name="dis" [(ngModel)]="i.distressPercent" /><span>%</span></div>
+            <span class="hint">{{ d.case.bankShortCode }} rule: {{ d.bank.distressPercent }}%</span>
+          </div>
+          <div class="fld col-2">
+            <label for="v-rem">Remarks on the valuation</label>
+            <textarea id="v-rem" name="rem" rows="3" [(ngModel)]="i.remarks" placeholder="Rate adopted considering recent transactions in Vesu for similar flats…"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- From the inspection -->
+      <section class="card sec facts">
+        <div class="sec-head"><h3>From the site inspection</h3>
+          @if (!d.inspection.submitted) { <span class="badge b-warn">Not submitted yet</span> }
+          <a class="small link" [routerLink]="['/inspection', d.case.assignmentId]">Open</a></div>
+        <div class="sec-body">
+          <table class="data compact">
+            <thead><tr><th>Area (sq.ft)</th><th class="right">Documents</th><th class="right">Measured</th></tr></thead>
+            <tbody>
+              <tr><td>Land</td><td class="right tnum">{{ d.inspection.landDocs ?? '—' }}</td><td class="right tnum">{{ d.inspection.landMeasured ?? '—' }}</td></tr>
+              <tr><td>Carpet</td><td class="right tnum">{{ d.inspection.carpetDocs ?? '—' }}</td><td class="right tnum">{{ d.inspection.carpetMeasured ?? '—' }}</td></tr>
+              <tr><td>Built-up</td><td class="right tnum">{{ d.inspection.builtUpDocs ?? '—' }}</td><td class="right tnum">{{ d.inspection.builtUpMeasured ?? '—' }}</td></tr>
+              <tr><td>Super built-up</td><td class="right tnum">{{ d.inspection.superBuiltUpDocs ?? '—' }}</td><td class="right muted">—</td></tr>
+            </tbody>
+          </table>
+          <p class="small muted kv">
+            Structure: <b>{{ d.inspection.structureType ?? '—' }}</b> · Age: <b>{{ d.inspection.ageYears ?? '—' }}</b> yrs ·
+            Condition: <b>{{ d.inspection.condition ?? '—' }}</b> · Marketability: <b>{{ d.inspection.marketability ?? '—' }}</b>
+          </p>
+        </div>
+      </section>
+    </fieldset>
+
+    <!-- Result -->
+    <aside class="result card" aria-live="polite">
+      @if (result(); as r) {
+        <div class="fmv">
+          <span class="small muted">Fair market value @if (calculating()) { <i class="fa-solid fa-spinner fa-spin"></i> }</span>
+          <b class="tnum big">{{ inr(r.fairMarketValue) }}</b>
+          <span class="words">{{ r.fairMarketValueInWords }}</span>
+          @if (r.ratePerSqFt) { <span class="small muted">≈ {{ inr(r.ratePerSqFt) }} per sq.ft</span> }
+        </div>
+        @if (calcError()) { <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ calcError() }}</div> }
+        <dl class="vals">
+          <div><dt>Realizable ({{ i.realizablePercent }}%)</dt><dd class="tnum">{{ inr(r.realizableValue) }}</dd></div>
+          <div><dt>Distress ({{ i.distressPercent }}%)</dt><dd class="tnum">{{ inr(r.distressValue) }}</dd></div>
+          <div><dt>Government (guideline)</dt><dd class="tnum">{{ r.guidelineValue ? inr(r.guidelineValue) : '—' }}
+            @if (belowGuideline(r); as diff) { <span class="small" [class.warn]="diff < -10">{{ diff > 0 ? '+' : '' }}{{ diff }}%</span> }</dd></div>
+          <div><dt>Insurance (rebuild)</dt><dd class="tnum">{{ r.insuranceValue ? inr(r.insuranceValue) : '—' }}</dd></div>
+        </dl>
+        @if (r.warnings.length) {
+          <ul class="warns">@for (w of r.warnings; track w) { <li><i class="fa-solid fa-triangle-exclamation"></i> {{ w }}</li> }</ul>
+        }
+        <button class="link" type="button" (click)="showWorking.set(!showWorking())" [attr.aria-expanded]="showWorking()">
+          <i class="fa-solid" [class]="showWorking() ? 'fa-chevron-up' : 'fa-chevron-down'"></i> How it was worked out
+        </button>
+        @if (showWorking()) {
+          <table class="data compact working">
+            <tbody>
+              @for (l of r.working; track $index) {
+                <tr><td><b>{{ l.label }}</b>@if (l.working) { <span class="small muted block">{{ l.working }}</span> }</td><td class="right tnum">{{ inr(l.amount) }}</td></tr>
+              }
+              <tr class="tot"><td>Total</td><td class="right tnum">{{ inr(r.marketValueBeforeRounding) }}</td></tr>
+              <tr><td class="small muted">Rounded to the nearest ₹1,000</td><td class="right tnum"><b>{{ inr(r.fairMarketValue) }}</b></td></tr>
+            </tbody>
+          </table>
+        }
+        @if (canEdit()) {
+          <div class="acts">
+            @if (dirty() && d.saved) { <button class="btn btn-ghost" type="button" (click)="reset()">Undo changes</button> }
+            <button class="btn btn-pri" type="button" (click)="save()" [disabled]="saving() || calculating() || !r.fairMarketValue || (!dirty() && d.saved)">
+              <i class="fa-solid" [class]="saving() ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> {{ d.saved ? 'Save changes' : 'Save valuation' }}
+            </button>
+          </div>
+        }
+      }
+    </aside>
+  </div>
+
+  <!-- Phones: the value stays in view -->
+  @if (result(); as r) {
+    <div class="mobile-bar">
+      <div><span class="small muted">Market value</span><b class="tnum">{{ short(r.fairMarketValue) }}</b></div>
+      @if (canEdit()) {
+        <button class="btn btn-pri" type="button" (click)="save()" [disabled]="saving() || calculating() || !r.fairMarketValue || (!dirty() && d.saved)">
+          <i class="fa-solid" [class]="saving() ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> Save
+        </button>
+      }
+    </div>
+  }
+} @else {
+  <div class="card empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Working out a starting valuation…</span></div>
+}
