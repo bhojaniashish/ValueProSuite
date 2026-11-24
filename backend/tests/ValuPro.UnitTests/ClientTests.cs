@@ -32,7 +32,7 @@ public class ClientTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .AddInterceptors(new AuditingInterceptor(new NoUser(), tenant, TimeProvider.System))
             .Options, tenant);
-        _clients = new ClientService(_db, new NumberSequenceService(_db), new SaveClientRequestValidator());
+        _clients = new ClientService(_db, new NumberSequenceService(_db), new SaveClientRequestValidator(), new ValuPro.Infrastructure.Assignments.AssignmentUsage(_db));
     }
 
     private static SaveClientRequest Req(string name, string? pan = null, string? gstin = null, ClientType type = ClientType.Individual) =>

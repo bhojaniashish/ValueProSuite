@@ -17,6 +17,8 @@ public sealed class CurrentUser(IHttpContextAccessor http) : ICurrentUser
 
     public string? Email => Principal?.FindFirst(ClaimTypes.Email)?.Value ?? Principal?.FindFirst("email")?.Value;
 
+    public string? Name => Principal?.FindFirst("name")?.Value;
+
     public bool HasPermission(string permission) =>
         Principal?.HasClaim(Permissions.ClaimType, permission) == true;
 }

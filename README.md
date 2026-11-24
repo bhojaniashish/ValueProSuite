@@ -12,7 +12,21 @@ app and login page), email (SMTP with test send) and SMS gateway, GST and number
 duplicate detection, search and filters, view/edit/remove, and bulk import from CSV or Excel with a row-by-row
 check before anything is saved. **Banks & Branches**: empanelled banks (quick pick of common banks), branches with
 IFSC checks, per-bank valuation rules (rate basis, distress/realizable %, depreciation) editable one by one or in a
-table, and a dynamic questionnaire per bank. Other sidebar modules show which phase builds them.
+table, and a dynamic questionnaire per bank. **Properties**: register with survey/CTS/plot numbers, areas, zone,
+usage and GPS ("Use my location" on phones), plus each property's valuation history. **Assignments**: numbers
+like VAL/2026/0001 (prefix from Settings, per-year counter), bank/branch, applicant and property linked to the
+masters or typed, valuer and reviewer, the 7-stage workflow with a timeline, a stage pipeline, list and Kanban
+board views. Other sidebar modules show which phase builds them.
+
+## Assignment workflow rules
+
+- Cases move one stage at a time. Sending back needs a reason; cancelling needs a reason and can be undone (reopen).
+- Scheduling the site visit needs its date and time.
+- Managers (Assignments: Manage) can do everything. The assigned valuer and reviewer can move their own cases.
+- Passing Quality Review (→ Submitted) needs Reports: Approve. Marking as invoiced needs Billing or Assignment management.
+- Only brand-new cases can be deleted; others are cancelled so their history stays. Numbers are never reused.
+- Clients, banks, branches and properties with open cases cannot be removed.
+- Due dates and "overdue" use the India calendar day, whatever the server's time zone.
 
 ## Layout
 

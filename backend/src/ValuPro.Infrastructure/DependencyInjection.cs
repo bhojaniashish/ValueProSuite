@@ -10,7 +10,11 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ValuPro.Application.Abstractions;
 using ValuPro.Application.Auth;
+using ValuPro.Application.Assignments;
 using ValuPro.Application.Banks;
+using ValuPro.Application.Properties;
+using ValuPro.Infrastructure.Assignments;
+using ValuPro.Infrastructure.Properties;
 using ValuPro.Application.Clients;
 using ValuPro.Infrastructure.Banks;
 using ValuPro.Application.Settings;
@@ -114,6 +118,9 @@ public static class DependencyInjection
         services.AddScoped<INumberSequence, NumberSequenceService>();
         services.AddScoped<IClientService, ClientService>();
         services.AddScoped<IBankService, BankService>();
+        services.AddScoped<IAssignmentUsage, AssignmentUsage>();
+        services.AddScoped<IAssignmentService, AssignmentService>();
+        services.AddScoped<IPropertyService, PropertyService>();
 
         return services;
     }

@@ -1,10 +1,16 @@
-import { Component, computed, input, output } from '@angular/core';
+import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { Permission } from '../../core/auth/auth.models';
+import { AuthService } from '../../core/auth/auth.service';
 import { Dialog } from '../../core/ui/dialog';
+import { AssignmentMiniList } from '../assignments/assignment-mini-list';
+import { AssignmentListItem, AssignmentsApi } from '../assignments/assignments.api';
+import { Paged } from '../users/users.api';
 import { Client, clientType } from './clients.api';
 
 @Component({
   selector: 'vp-client-view-dialog',
-  imports: [Dialog],
+  imports: [Dialog, AssignmentMiniList],
   template: `
     <vp-dialog [title]="client().name" [subtitle]="type().label + ' · ' + client().code" [icon]="type().icon" [tone]="type().tone" (closed)="closed.emit()">
       <div class="grid">
@@ -26,7 +32,19 @@ import { Client, clientType } from './clients.api';
         <span class="label">Remarks</span>
         <p>{{ client().remarks || '—' }}</p>
       </div>
-      <div class="block muted small"><i class="fa-solid fa-clipboard-list"></i> Assignments for this client will appear here once the Assignments module is built.</div>
+      @if (canSeeAssignments()) {
+        <div class="block">
+          <span class="label">Assignments @if (assignments(); as a) { · {{ a.total }} }</span>
+          @if (assignments(); as a) {
+            <vp-assignment-mini-list [items]="a.items" empty="No assignments for this client yet." />
+            @if (a.total > a.items.length) {
+              <p class="small muted">Showing the latest {{ a.items.length }} of {{ a.total }}. Search the client's name on the Assignments page for all.</p>
+            }
+          } @else {
+            <p class="muted small"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</p>
+          }
+        </div>
+      }
 
       <ng-container footer>
         <button class="btn btn-ghost" type="button" (click)="closed.emit()">Close</button>
@@ -48,11 +66,25 @@ import { Client, clientType } from './clients.api';
     .block p { margin: 4px 0 0; line-height: 1.55; }
   `,
 })
-export class ClientViewDialog {
+export class ClientViewDialog implements OnInit {
+  private readonly api = inject(AssignmentsApi);
   readonly client = input.required<Client>();
   readonly canEdit = input(false);
   readonly edit = output<void>();
   readonly closed = output<void>();
+
+  private readonly auth = inject(AuthService);
+  protected readonly canSeeAssignments = computed(() => this.auth.hasPermission(Permission.assignmentsView));
+  protected readonly assignments = signal<Paged<AssignmentListItem> | null>(null);
+
+  async ngOnInit(): Promise<void> {
+    if (!this.canSeeAssignments()) return;
+    try {
+      this.assignments.set(await firstValueFrom(this.api.list({ clientId: this.client().id, sort: 'created', desc: true, page: 1, pageSize: 5 })));
+    } catch {
+      this.assignments.set({ items: [], total: 0, page: 1, pageSize: 5 });
+    }
+  }
 
   protected readonly type = computed(() => clientType(this.client().type));
   protected readonly address = computed(() => {

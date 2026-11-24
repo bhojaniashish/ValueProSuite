@@ -1,12 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using ValuPro.Application.Assignments;
 using ValuPro.Application.Banks;
+using ValuPro.Infrastructure.Assignments;
 using ValuPro.Application.Common;
 using ValuPro.Domain.Banks;
 using ValuPro.Infrastructure.Persistence;
 
 namespace ValuPro.Infrastructure.Banks;
 
-public sealed class BankService(AppDbContext db) : IBankService
+public sealed class BankService(AppDbContext db, IAssignmentUsage usage) : IBankService
 {
     // ---------------- banks ----------------
 
@@ -61,7 +63,8 @@ public sealed class BankService(AppDbContext db) : IBankService
     {
         var bank = await db.Set<Bank>().Include(b => b.Branches).FirstOrDefaultAsync(b => b.Id == id, ct);
         if (bank is null) return Error.NotFound("Bank not found.");
-        // Assignments (next module) will refuse this while the bank has open cases.
+        if (await usage.OpenForBankAsync(id, ct) is > 0 and var open)
+            return Error.Conflict(AssignmentUsage.Message(bank.Name, open));
         db.RemoveRange(bank.Branches); // soft delete via AuditingInterceptor
         db.Remove(bank);
         await db.SaveChangesAsync(ct);
@@ -144,6 +147,8 @@ public sealed class BankService(AppDbContext db) : IBankService
     {
         var branch = await db.Set<BankBranch>().FirstOrDefaultAsync(b => b.Id == branchId && b.BankId == bankId, ct);
         if (branch is null) return Error.NotFound("Branch not found.");
+        if (await usage.OpenForBranchAsync(branchId, ct) is > 0 and var open)
+            return Error.Conflict(AssignmentUsage.Message(branch.Name, open));
         db.Remove(branch);
         await db.SaveChangesAsync(ct);
         return true;

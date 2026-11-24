@@ -9,6 +9,8 @@ const BUILT: Record<string, Routes[number]['loadComponent']> = {
   settings: () => import('./features/settings/settings-page').then((m) => m.SettingsPage),
   clients: () => import('./features/clients/clients-page').then((m) => m.ClientsPage),
   banks: () => import('./features/banks/banks-page').then((m) => m.BanksPage),
+  properties: () => import('./features/properties/properties-page').then((m) => m.PropertiesPage),
+  assignments: () => import('./features/assignments/assignments-page').then((m) => m.AssignmentsPage),
 };
 
 const moduleRoutes: Routes = NAVIGATION.flatMap((g) => g.items)
@@ -54,6 +56,20 @@ export const routes: Routes = [
             canActivate: [permissionGuard],
             data: { permission: Permission.banksView },
             loadComponent: () => import('./features/banks/bank-detail-page').then((m) => m.BankDetailPage),
+          },
+          {
+            path: 'properties/:id',
+            title: 'Property · ValuPro',
+            canActivate: [permissionGuard],
+            data: { permission: Permission.propertiesView },
+            loadComponent: () => import('./features/properties/property-detail-page').then((m) => m.PropertyDetailPage),
+          },
+          {
+            path: 'assignments/:id',
+            title: 'Assignment · ValuPro',
+            canActivate: [permissionGuard],
+            data: { permission: Permission.assignmentsView },
+            loadComponent: () => import('./features/assignments/assignment-detail-page').then((m) => m.AssignmentDetailPage),
           },
           ...moduleRoutes,
           {

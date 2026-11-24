@@ -1,0 +1,161 @@
+<div class="page-head">
+  <div>
+    <h2>Assignment Management</h2>
+    <p>Track every valuation from intake to invoice · {{ pipeline()?.open ?? '–' }} open</p>
+  </div>
+  <div class="actions">
+    <div class="viewtoggle" role="group" aria-label="View">
+      <button type="button" [class.on]="view() === 'list'" (click)="setView('list')" [attr.aria-pressed]="view() === 'list'"><i class="fa-solid fa-list"></i> List</button>
+      <button type="button" [class.on]="view() === 'board'" (click)="setView('board')" [attr.aria-pressed]="view() === 'board'"><i class="fa-solid fa-table-columns"></i> Board</button>
+    </div>
+    @if (canManage()) {
+      <button class="btn btn-pri" type="button" (click)="presetProperty.set(null); creating.set(true)"><i class="fa-solid fa-plus"></i> New Assignment</button>
+    }
+  </div>
+</div>
+
+<div class="pipeline">
+  @for (s of stages; track s; let i = $index) {
+    <button type="button" class="stage" [class.active]="query().status === s" [class.static]="view() === 'board'" (click)="stageClick(s)"
+      [attr.aria-pressed]="query().status === s" [attr.aria-label]="meta(s).label + ': ' + count(s)">
+      <span class="ic badge" [class]="meta(s).badge"><i class="fa-solid" [class]="meta(s).icon"></i></span>
+      <span class="txt"><b class="tnum">{{ count(s) }}</b><span>{{ meta(s).label }}</span></span>
+    </button>
+    @if (i < stages.length - 1) { <i class="fa-solid fa-chevron-right sep" aria-hidden="true"></i> }
+  }
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <div class="search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="search" placeholder="Search number, applicant, property, bank, valuer" aria-label="Search assignments"
+        [value]="query().search" (input)="onSearch($any($event.target).value)" />
+    </div>
+    @if (view() === 'list') {
+      <select aria-label="Filter by status" [value]="query().status" (change)="patch({ status: $any($event.target).value, page: 1 })">
+        <option value="">All Status</option>
+        @for (s of stages; track s) { <option [value]="s">{{ meta(s).label }}</option> }
+        <option value="Cancelled">Cancelled</option>
+      </select>
+    }
+    <select aria-label="Filter by bank" [value]="query().bankId" (change)="patch({ bankId: $any($event.target).value, page: 1 })">
+      <option value="">All Banks</option>
+      @for (b of banks(); track b.id) { <option [value]="b.id">{{ b.shortCode }}</option> }
+    </select>
+    <select aria-label="Filter by priority" [value]="query().priority" (change)="patch({ priority: $any($event.target).value, page: 1 })">
+      <option value="">All Priority</option>
+      @for (p of priorities; track p.value) { <option [value]="p.value">{{ p.label }}</option> }
+    </select>
+    <div class="chips">
+      <button type="button" class="chip" [class.on]="query().mine" (click)="toggle('mine')" [attr.aria-pressed]="!!query().mine"><i class="fa-solid fa-user"></i> Mine</button>
+      <button type="button" class="chip warn" [class.on]="query().overdue" (click)="toggle('overdue')" [attr.aria-pressed]="!!query().overdue">
+        <i class="fa-solid fa-clock"></i> Overdue @if (pipeline()?.overdue) { <span class="n">{{ pipeline()?.overdue }}</span> }
+      </button>
+      @if (view() === 'list') {
+        <button type="button" class="chip" [class.on]="query().openOnly" (click)="toggle('openOnly')" [attr.aria-pressed]="!!query().openOnly">Open only</button>
+      }
+    </div>
+    @if (filtered()) { <button class="btn btn-ghost btn-sm" type="button" (click)="clear()"><i class="fa-solid fa-xmark"></i> Clear</button> }
+    @if (loading()) { <i class="fa-solid fa-spinner fa-spin muted spin"></i> }
+  </div>
+
+  @if (loadError()) {
+    <div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><b>Could not load assignments</b><span>{{ loadError() }}</span>
+      <button class="btn btn-soft btn-sm" type="button" (click)="load()">Try again</button></div>
+  } @else if (view() === 'board') {
+    <div class="board" [class.dim]="loading()">
+      @for (col of columns(); track col.status) {
+        <section class="col" [class.drop]="dropTarget() === col.status"
+          (dragover)="onDragOver(col.status, $event)" (dragleave)="dropTarget.set(null)" (drop)="onDrop(col.status, $event)"
+          [attr.aria-label]="meta(col.status).label">
+          <header><span class="badge" [class]="meta(col.status).badge"><i class="fa-solid" [class]="meta(col.status).icon"></i> {{ meta(col.status).label }}</span><span class="n tnum">{{ col.items.length }}</span></header>
+          <div class="cards">
+            @for (a of col.items; track a.id) {
+              <a class="kcard" [routerLink]="['/assignments', a.id]" draggable="true" (dragstart)="onDragStart(a, $event)" (dragend)="onDragEnd()"
+                [class.dragging]="dragging()?.id === a.id">
+                <div class="top">
+                  <b class="tnum">{{ a.number }}</b>
+                  <span class="badge" [class]="priorityBadge(a.priority)">{{ a.priority }}</span>
+                </div>
+                <span class="who">{{ a.applicantName }}</span>
+                <span class="small muted prop">{{ a.propertySummary }}</span>
+                <div class="foot">
+                  <vp-bank-badge [code]="a.bankShortCode" [color]="a.bankColor" style="--size: 24px" />
+                  <span class="avatar sm" [style.background]="avatarColor(a.valuerName)" [title]="a.valuerName">{{ initials(a.valuerName) }}</span>
+                  <span class="due small" [class.late]="a.isOverdue"><i class="fa-regular fa-calendar"></i> {{ date(a.dueDate) }}</span>
+                </div>
+              </a>
+            } @empty {
+              <p class="none">No assignments</p>
+            }
+          </div>
+        </section>
+      }
+    </div>
+    <p class="boardhint small muted">
+      <i class="fa-solid fa-hand-pointer"></i>
+      <span class="mouse">Drag a card to the next or previous stage.</span>
+      <span class="touch">Tap a card to open it and move it to the next stage.</span>
+      Cancelled assignments are in the list view.
+    </p>
+  } @else if (page(); as p) {
+    @if (!p.items.length) {
+      <div class="empty">
+        <i class="fa-solid fa-clipboard-list"></i>
+        <b>{{ filtered() ? 'No assignments match' : 'No assignments yet' }}</b>
+        <span>{{ filtered() ? 'Try a different search or filter.' : 'Create the first valuation assignment.' }}</span>
+        @if (!filtered() && canManage()) { <button class="btn btn-pri btn-sm" type="button" (click)="creating.set(true)"><i class="fa-solid fa-plus"></i> New Assignment</button> }
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="data" [class.dim]="loading()">
+          <thead>
+            <tr>
+              <th class="sortable" (click)="sortBy('number')">Assignment <i class="fa-solid" [class]="sortIcon('number')"></i></th>
+              <th class="sortable hide-sm" (click)="sortBy('bank')">Bank <i class="fa-solid" [class]="sortIcon('bank')"></i></th>
+              <th class="sortable hide-md" (click)="sortBy('applicant')">Applicant <i class="fa-solid" [class]="sortIcon('applicant')"></i></th>
+              <th class="hide-md">Valuer</th>
+              <th class="sortable hide-md" (click)="sortBy('priority')">Priority <i class="fa-solid" [class]="sortIcon('priority')"></i></th>
+              <th class="sortable" (click)="sortBy('due')">Due <i class="fa-solid" [class]="sortIcon('due')"></i></th>
+              <th class="sortable" (click)="sortBy('status')">Status <i class="fa-solid" [class]="sortIcon('status')"></i></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of p.items; track a.id) {
+              <tr class="row" [routerLink]="['/assignments', a.id]" tabindex="0" (keydown.enter)="router.navigate(['/assignments', a.id])">
+                <td><b class="tnum">{{ a.number }}</b><span class="small muted block clip">{{ a.propertySummary }}</span></td>
+                <td class="hide-sm">
+                  <div class="bank"><vp-bank-badge [code]="a.bankShortCode" [color]="a.bankColor" style="--size: 30px" />
+                    <div><b>{{ a.bankShortCode }}</b><span class="small muted block">{{ a.branchName || '—' }}</span></div></div>
+                </td>
+                <td class="hide-md">{{ a.applicantName }}</td>
+                <td class="hide-md"><div class="val"><span class="avatar sm" [style.background]="avatarColor(a.valuerName)">{{ initials(a.valuerName) }}</span> {{ a.valuerName.split(' ')[0] }}</div></td>
+                <td class="hide-md"><span class="badge" [class]="priorityBadge(a.priority)">{{ a.priority }}</span></td>
+                <td><span class="tnum" [class.late]="a.isOverdue">{{ date(a.dueDate) }}</span></td>
+                <td><span class="badge" [class]="meta(a.status).badge">{{ meta(a.status).label }}</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <span class="small muted">{{ range() }}</span>
+        <div class="pg">
+          <button class="btn-icon" type="button" aria-label="Previous page" [disabled]="p.page <= 1" (click)="patch({ page: p.page - 1 })"><i class="fa-solid fa-chevron-left"></i></button>
+          <span class="small tnum">Page {{ p.page }} of {{ pages() }}</span>
+          <button class="btn-icon" type="button" aria-label="Next page" [disabled]="p.page >= pages()" (click)="patch({ page: p.page + 1 })"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
+    }
+  } @else {
+    <div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading assignments…</span></div>
+  }
+</div>
+
+@if (creating()) {
+  <vp-assignment-form-dialog [presetPropertyId]="presetProperty()" (saved)="onCreated($event)" (closed)="creating.set(false)" />
+}
+@if (move(); as m) {
+  <vp-move-dialog [detail]="m.detail" [kind]="m.kind" [to]="m.to" (moved)="onMoved($event)" (closed)="move.set(null)" />
+}

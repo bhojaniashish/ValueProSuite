@@ -11,7 +11,8 @@ namespace ValuPro.Infrastructure.Clients;
 public sealed partial class ClientService(
     AppDbContext db,
     INumberSequence numbers,
-    IValidator<SaveClientRequest> validator) : IClientService
+    IValidator<SaveClientRequest> validator,
+    Application.Assignments.IAssignmentUsage usage) : IClientService
 {
     public const string SequenceKey = "client";
 
@@ -101,7 +102,8 @@ public sealed partial class ClientService(
     {
         var client = await db.Set<Client>().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (client is null) return Error.NotFound("Client not found.");
-        // Phase 1 (Assignments): refuse while the client has open assignments.
+        if (await usage.OpenForClientAsync(id, ct) is > 0 and var open)
+            return Error.Conflict(Assignments.AssignmentUsage.Message($"{client.Name} ({client.Code})", open));
         db.Remove(client); // soft delete via AuditingInterceptor
         await db.SaveChangesAsync(ct);
         return true;

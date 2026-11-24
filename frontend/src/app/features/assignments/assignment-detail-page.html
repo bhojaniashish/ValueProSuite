@@ -1,0 +1,126 @@
+<a class="back small" routerLink="/assignments"><i class="fa-solid fa-arrow-left"></i> All assignments</a>
+
+@if (error()) {
+  <div class="card card-pad"><div class="alert-inline danger"><i class="fa-solid fa-triangle-exclamation"></i> {{ error() }}</div></div>
+} @else if (detail(); as d) {
+  <div class="card head">
+    <vp-bank-badge [code]="a().bankShortCode" [color]="a().bankColor" style="--size: 52px" />
+    <div class="title">
+      <h2>
+        <span class="tnum">{{ a().number }}</span>
+        <span class="badge" [class]="meta(a().status).badge"><i class="fa-solid" [class]="meta(a().status).icon"></i> {{ meta(a().status).label }}</span>
+        <span class="badge" [class]="priorityBadge(a().priority)">{{ a().priority }}</span>
+        @if (a().isOverdue) { <span class="badge b-danger"><i class="fa-solid fa-clock"></i> Overdue</span> }
+      </h2>
+      <p class="muted">{{ a().propertySummary }} · {{ a().bankName }}</p>
+    </div>
+  </div>
+
+  @if (!cancelled()) {
+    <ol class="stepper card" aria-label="Progress">
+      @for (s of stages; track s; let i = $index) {
+        <li [class]="stageState(i)" [attr.aria-current]="stageState(i) === 'current' ? 'step' : null">
+          <span class="dot">@if (stageState(i) === 'done') { <i class="fa-solid fa-check"></i> } @else { {{ i + 1 }} }</span>
+          <span class="lbl">{{ meta(s).label }}</span>
+        </li>
+      }
+    </ol>
+  }
+
+  <div class="actions card">
+    @if (cancelled()) {
+      <span class="state"><i class="fa-solid fa-ban"></i> This assignment is cancelled.</span>
+    } @else if (d.moves.next) {
+      <button class="btn btn-pri" type="button" [disabled]="!d.moves.canMoveNext || busy()" (click)="next()">
+        <i class="fa-solid" [class]="busy() ? 'fa-spinner fa-spin' : meta(d.moves.next).icon"></i>
+        {{ d.moves.next === 'SiteVisitScheduled' ? 'Schedule Site Visit' : 'Move to ' + meta(d.moves.next).label }}
+      </button>
+    } @else {
+      <span class="state ok"><i class="fa-solid fa-circle-check"></i> All stages complete.</span>
+    }
+    @if (d.moves.back) {
+      <button class="btn btn-ghost" type="button" (click)="move.set({ kind: 'back', to: d.moves.back })"><i class="fa-solid fa-rotate-left"></i> Send back</button>
+    }
+    @if (d.moves.canReopen) {
+      <button class="btn btn-pri" type="button" (click)="move.set({ kind: 'reopen', to: 'New' })"><i class="fa-solid fa-rotate-right"></i> Reopen</button>
+    }
+    <span class="spacer"></span>
+    @if (d.moves.canEdit) {
+      <button class="btn btn-ghost" type="button" (click)="editing.set(true)"><i class="fa-solid fa-pen"></i> Edit</button>
+    }
+    @if (d.moves.canCancel) {
+      <button class="btn btn-ghost danger" type="button" (click)="move.set({ kind: 'cancel', to: 'Cancelled' })"><i class="fa-solid fa-ban"></i> Cancel</button>
+    }
+    @if (d.moves.canDelete) {
+      <button class="btn-icon danger" type="button" aria-label="Delete assignment" title="Delete (only while new)" (click)="deleting.set(true)"><i class="fa-solid fa-trash-can"></i></button>
+    }
+    @if (d.moves.nextBlockedReason) {
+      <p class="blocked small"><i class="fa-solid fa-lock"></i> {{ d.moves.nextBlockedReason }}</p>
+    }
+  </div>
+
+  <div class="grid2">
+    <div class="card card-pad">
+      <h3>Details</h3>
+      <dl>
+        <div><dt>Bank</dt><dd>{{ a().bankName }}</dd></div>
+        <div><dt>Branch</dt><dd>{{ a().branchName || '—' }}</dd></div>
+        <div><dt>Bank Reference</dt><dd class="tnum">{{ d.bankReference || '—' }}</dd></div>
+        <div><dt>Purpose</dt><dd>{{ d.purpose || '—' }}</dd></div>
+        <div><dt>Applicant</dt><dd>{{ a().applicantName }} @if (a().clientId) { <i class="fa-solid fa-link linked" title="Linked to client record"></i> }</dd></div>
+        <div><dt>Valuer</dt><dd>{{ a().valuerName }}</dd></div>
+        <div><dt>Reviewer</dt><dd>{{ d.reviewerName || 'Not assigned' }}</dd></div>
+        <div><dt>Due Date</dt><dd [class.late]="a().isOverdue">{{ date(a().dueDate) }}</dd></div>
+        <div><dt>Site Visit</dt><dd>{{ d.siteVisitAt ? visitText(d.siteVisitAt) : '—' }}</dd></div>
+        <div><dt>Fee</dt><dd class="tnum">{{ rupees(a().fee) }}</dd></div>
+        <div class="wide">
+          <dt>Property</dt>
+          <dd>
+            @if (a().propertyId && canViewProperties()) { <a [routerLink]="['/properties', a().propertyId]">{{ a().propertySummary }}</a> }
+            @else { {{ a().propertySummary }} }
+          </dd>
+        </div>
+        @if (d.remarks) { <div class="wide"><dt>Remarks</dt><dd>{{ d.remarks }}</dd></div> }
+      </dl>
+      <div class="later">
+        <span><i class="fa-solid fa-location-crosshairs"></i> Inspection, photos &amp; documents: Phase 2</span>
+        <span><i class="fa-solid fa-calculator"></i> Valuation: Phase 2</span>
+        <span><i class="fa-solid fa-file-contract"></i> Report: Phase 3</span>
+      </div>
+    </div>
+
+    <div class="card card-pad">
+      <h3>Timeline</h3>
+      <ol class="timeline">
+        @for (e of d.events; track $index) {
+          <li>
+            <span class="tdot" [class]="meta(e.toStatus).badge"><i class="fa-solid" [class]="e.title.startsWith('Returned') ? 'fa-rotate-left' : meta(e.toStatus).icon"></i></span>
+            <div>
+              <b>{{ e.title }}</b>
+              @if (e.note) { <p class="note">{{ e.note }}</p> }
+              <span class="small muted">{{ e.byName }} · <span [title]="e.at">{{ ago(e.at) }}</span></span>
+            </div>
+          </li>
+        }
+      </ol>
+    </div>
+  </div>
+
+  @if (editing()) {
+    <vp-assignment-form-dialog [detail]="d" (saved)="onSaved($event)" (closed)="editing.set(false)" />
+  }
+  @if (move(); as m) {
+    <vp-move-dialog [detail]="d" [kind]="m.kind" [to]="m.to" (moved)="onMoved($event)" (closed)="move.set(null)" />
+  }
+  @if (deleting()) {
+    <vp-dialog title="Delete assignment?" [subtitle]="a().number" icon="fa-trash-can" tone="b-danger" size="sm" (closed)="deleting.set(false)">
+      <p class="confirm">{{ a().number }} will be deleted. Its number is not reused.</p>
+      <ng-container footer>
+        <button class="btn btn-ghost" type="button" (click)="deleting.set(false)">Keep it</button>
+        <button class="btn btn-danger" type="button" [disabled]="busy()" (click)="remove()"><i class="fa-solid fa-trash-can"></i> Delete</button>
+      </ng-container>
+    </vp-dialog>
+  }
+} @else {
+  <div class="card card-pad muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
+}

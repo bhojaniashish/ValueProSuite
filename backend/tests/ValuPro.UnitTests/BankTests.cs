@@ -30,7 +30,7 @@ public class BankTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .AddInterceptors(new AuditingInterceptor(new NoUser(), tenant, TimeProvider.System))
             .Options, tenant);
-        _banks = new BankService(_db);
+        _banks = new BankService(_db, new ValuPro.Infrastructure.Assignments.AssignmentUsage(_db));
     }
 
     private static readonly BankRules Rules = new(RateBasis.BankRates, 70m, 90m, DepreciationMethod.StraightLine);
