@@ -1,0 +1,158 @@
+@if (error()) {
+  <div class="card empty">
+    <i class="fa-solid fa-triangle-exclamation"></i><b>Could not open the report</b><span>{{ error() }}</span>
+    <a class="btn btn-soft btn-sm" routerLink="/reports">Back to reports</a>
+  </div>
+} @else if (d(); as d) {
+  <div class="head card">
+    <a class="back" routerLink="/reports" aria-label="Back to reports"><i class="fa-solid fa-arrow-left"></i></a>
+    <div class="who">
+      <div class="l1">
+        <span class="bank" [style.background]="d.bankColor">{{ d.bankShortCode }}</span>
+        <a class="num" [routerLink]="['/assignments', d.assignmentId]">{{ d.number }}</a>
+        <span class="badge" [class]="statusMeta(d.status).badge">{{ statusMeta(d.status).label }}</span>
+      </div>
+      <b>{{ d.applicantName }}</b>
+      <span class="small muted">{{ d.propertySummary }} · Valuer {{ d.valuerName }}@if (d.reviewerName) { · Reviewer {{ d.reviewerName }} }</span>
+    </div>
+    @if (d.fairMarketValue != null) {
+      <div class="fmv"><span class="small muted">Fair market value</span><b class="tnum">{{ inr(d.fairMarketValue) }}</b></div>
+    }
+  </div>
+
+  @if (final(); as f) {
+    <div class="alert-inline ok"><i class="fa-solid fa-circle-check"></i> Approved {{ when(f.generatedAt) }}: signed by {{ f.signedByName }}, approved by {{ f.approvedByName }}.</div>
+  } @else if (d.readOnlyReason) {
+    <div class="alert-inline info"><i class="fa-solid fa-lock"></i> {{ d.readOnlyReason }}</div>
+  }
+
+  <div class="layout">
+    <div class="left">
+      <!-- Readiness -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Ready for the report?</h3></div>
+        <ul class="checks">
+          @for (c of d.checks; track c.key) {
+            <li [class.ok]="c.ok" [class.block]="!c.ok && c.blocking">
+              <i class="fa-solid" [class]="c.ok ? 'fa-circle-check' : c.blocking ? 'fa-circle-xmark' : 'fa-circle-exclamation'"></i>
+              <div>
+                <b>{{ c.label }}</b>
+                @if (c.detail) { <span class="small">{{ c.detail }}</span> }
+              </div>
+              @if (!c.ok && (c.key !== 'signature' || isValuer())) {
+                <a class="small link" [routerLink]="link(c)">{{ c.key === 'signature' ? 'Add mine' : 'Open' }} <i class="fa-solid fa-arrow-right"></i></a>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+
+      <!-- Details -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Report details</h3>@if (dirty()) { <span class="small unsaved">Not saved</span> }</div>
+        <fieldset class="sec-body form-grid" [disabled]="!d.canEdit" (input)="changed()" (change)="changed()">
+          <div class="fld">
+            <label for="r-date">Report date</label>
+            <input id="r-date" type="date" [(ngModel)]="f.reportDate" name="reportDate" />
+            <span class="hint">Empty: the day the PDF is generated.</span>
+          </div>
+          <div class="fld">
+            <label for="v-date">Valuation as on</label>
+            <input id="v-date" type="date" [(ngModel)]="f.valuationDate" name="valuationDate" />
+          </div>
+          <div class="fld">
+            <label for="r-place">Place</label>
+            <input id="r-place" [(ngModel)]="f.place" name="place" placeholder="Surat" />
+          </div>
+          <div class="fld">
+            <span class="lbl">Photo annexure</span>
+            <vp-choice label="Photos per page" [options]="perPage" [value]="'' + f.photosPerPage" (valueChange)="f.photosPerPage = +($event ?? 4); changed()" />
+          </div>
+          <div class="fld col-2">
+            <label for="r-op">Opinion and remarks</label>
+            <textarea id="r-op" rows="5" [(ngModel)]="f.opinion" name="opinion"
+              placeholder="The property is a well-maintained flat in a fully developed area. The rate adopted is in line with recent transactions…"></textarea>
+            <span class="hint">The closing line with the market value in figures and words is added automatically.</span>
+          </div>
+          <div class="fld col-2">
+            <label for="r-dec">Declaration
+              @if (d.fields.declarationIsStandard) { <span class="hint">(standard wording)</span> }
+              @else if (d.canEdit) { <button class="link small inline" type="button" (click)="resetDeclaration()">Use the standard wording</button> }
+            </label>
+            <textarea id="r-dec" rows="8" [(ngModel)]="f.declaration" name="declaration"></textarea>
+          </div>
+        </fieldset>
+        @if (d.canEdit) {
+          <div class="sec-foot">
+            <button class="btn btn-ghost" type="button" (click)="save()" [disabled]="!dirty() || busy() !== null">
+              <i class="fa-solid" [class]="busy() === 'save' ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> Save details
+            </button>
+          </div>
+        }
+      </section>
+    </div>
+
+    <!-- Actions, versions, preview -->
+    <div class="right">
+      <section class="card sec actions">
+        @if (!final()) {
+          <button class="btn btn-pri wide" type="button" (click)="generate()" [disabled]="!d.canGenerate || busy() !== null">
+            <i class="fa-solid" [class]="busy() === 'draft' ? 'fa-spinner fa-spin' : 'fa-file-pdf'"></i> {{ d.files.length ? 'Generate new draft' : 'Generate draft report' }}
+          </button>
+          @if (!d.canGenerate && d.generateBlockedReason && !d.readOnlyReason) { <span class="small block-why">{{ d.generateBlockedReason }}</span> }
+
+          @if (d.status === 'QualityReview' || d.status === 'DraftPrepared') {
+            <button class="btn btn-soft wide" type="button" (click)="confirmApprove.set(true)" [disabled]="!d.canApprove || busy() !== null">
+              <i class="fa-solid fa-signature"></i> Approve &amp; sign
+            </button>
+            @if (!d.canApprove && d.approveBlockedReason) { <span class="small block-why">{{ d.approveBlockedReason }}</span> }
+          }
+        }
+        @if (final(); as fin) {
+          <button class="btn btn-pri wide" type="button" (click)="download(fin)"><i class="fa-solid fa-download"></i> Download signed report</button>
+        }
+      </section>
+
+      @if (d.files.length) {
+        <section class="card sec">
+          <div class="sec-head"><h3>Versions</h3></div>
+          <ul class="files">
+            @for (f of d.files; track f.id) {
+              <li [class.on]="previewFor() === f.id">
+                <button class="pick" type="button" (click)="preview(f)" [attr.aria-label]="'Preview version ' + f.number">
+                  <span class="badge" [class]="f.kind === 'Final' ? 'b-ok' : 'b-gray'">{{ f.kind === 'Final' ? 'Signed' : 'Draft' }} v{{ f.number }}</span>
+                  <span class="small">{{ when(f.generatedAt) }} · {{ f.generatedByName }}</span>
+                  <span class="small muted">{{ inr(f.fairMarketValue) }} · {{ size(f.sizeBytes) }}</span>
+                </button>
+                <button class="btn-icon" type="button" [attr.aria-label]="'Download version ' + f.number" (click)="download(f)"><i class="fa-solid fa-download"></i></button>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    </div>
+  </div>
+
+  @if (d.files.length) {
+    <section class="card preview">
+      <div class="sec-head"><h3>Preview</h3>@if (previewLoading()) { <i class="fa-solid fa-spinner fa-spin muted"></i> }</div>
+      @if (previewUrl(); as url) {
+        <iframe [src]="url" title="Report preview"></iframe>
+      }
+    </section>
+  }
+} @else {
+  <div class="card empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading the report…</span></div>
+}
+
+@if (confirmApprove()) {
+  <vp-dialog title="Approve and sign the report?" [subtitle]="d()?.number ?? ''" icon="fa-signature" size="sm" (closed)="confirmApprove.set(false)">
+    <p class="confirm">A final PDF is generated with {{ d()?.valuerName }}'s signature, and the case moves to "Submitted". It can't be changed afterwards.</p>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="confirmApprove.set(false)">Not yet</button>
+      <button class="btn btn-pri" type="button" [disabled]="busy() !== null" (click)="approve()">
+        <i class="fa-solid" [class]="busy() === 'approve' ? 'fa-spinner fa-spin' : 'fa-signature'"></i> Approve &amp; sign
+      </button>
+    </ng-container>
+  </vp-dialog>
+}

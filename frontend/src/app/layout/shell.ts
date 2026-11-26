@@ -52,6 +52,7 @@ export class Shell {
   protected readonly pageTitle = computed(() => {
     const path = this.url().split(/[/?#]/)[1];
     if (path === 'change-password') return 'Change password';
+    if (path === 'account') return 'My signature';
     return NAVIGATION.flatMap((g) => g.items).find((i) => i.path === path)?.label ?? 'ValuPro';
   });
 

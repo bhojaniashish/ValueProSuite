@@ -37,6 +37,8 @@ export const Permission = {
   valuationView: 'valuation.view',
   valuationManage: 'valuation.manage',
   reportsView: 'reports.view',
+  reportsManage: 'reports.manage',
+  reportsApprove: 'reports.approve',
   billingView: 'billing.view',
   ratesView: 'rates.view',
   ratesManage: 'rates.manage',

@@ -32,6 +32,8 @@
       <span class="state"><i class="fa-solid fa-ban"></i> This assignment is cancelled.</span>
     } @else if (d.moves.next === 'InspectionDone' && canViewInspection()) {
       <a class="btn btn-pri" [routerLink]="['/inspection', d.assignment.id]"><i class="fa-solid fa-location-crosshairs"></i> Open Site Inspection</a>
+    } @else if ((d.moves.next === 'QualityReview' || d.moves.next === 'Submitted') && !d.moves.canMoveNext && canViewReport()) {
+      <a class="btn btn-pri" [routerLink]="['/reports', d.assignment.id]"><i class="fa-solid fa-file-contract"></i> Open Report</a>
     } @else if (d.moves.next === 'DraftPrepared' && !d.moves.canMoveNext && canViewValuation()) {
       <a class="btn btn-pri" [routerLink]="['/valuation', d.assignment.id]"><i class="fa-solid fa-calculator"></i> Open Valuation Engine</a>
     } @else if (d.moves.next) {
@@ -50,6 +52,10 @@
     @if (canViewValuation() && !cancelled() && d.assignment.status !== 'New' && d.assignment.status !== 'SiteVisitScheduled'
       && !(d.moves.next === 'DraftPrepared' && !d.moves.canMoveNext)) {
       <a class="btn btn-ghost" [routerLink]="['/valuation', d.assignment.id]"><i class="fa-solid fa-calculator"></i> Valuation</a>
+    }
+    @if (canViewReport() && !cancelled() && ['InspectionDone', 'DraftPrepared', 'QualityReview', 'Submitted', 'InvoiceGenerated'].includes(d.assignment.status)
+      && !((d.moves.next === 'QualityReview' || d.moves.next === 'Submitted') && !d.moves.canMoveNext)) {
+      <a class="btn btn-ghost" [routerLink]="['/reports', d.assignment.id]"><i class="fa-solid fa-file-contract"></i> Report</a>
     }
     @if (d.moves.back) {
       <button class="btn btn-ghost" type="button" (click)="move.set({ kind: 'back', to: d.moves.back })"><i class="fa-solid fa-rotate-left"></i> Send back</button>
@@ -97,9 +103,6 @@
       </dl>
       @if (canViewInspection()) { <vp-photo-strip class="photos" [assignmentId]="d.assignment.id" /> }
       <vp-document-strip class="photos" [assignmentId]="d.assignment.id" />
-      <div class="later">
-        <span><i class="fa-solid fa-file-contract"></i> Report: Phase 3</span>
-      </div>
     </div>
 
     <div class="card card-pad">

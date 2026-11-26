@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 2 complete** (Phases 0–2 done; Phase 3 Reports next). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 3 in progress** (Phases 0–2 done; Reports with the default template built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -36,6 +36,11 @@ sheds), with ± adjustments and extras. It is pre-filled from the inspection (lo
 structure, age), the Rate Master (locality band, circle rate, construction rate, depreciation rule) and the bank's rules
 (realizable / distress %, depreciation method, rate basis). It gives fair market, realizable, distress, guideline
 (government) and insurance values, the value in words (lakh / crore), the working, and warnings banks ask about.
+**Reports** (Phase 3): one default bank-style valuation report (PDF, A4) built from the case: letterhead, general details,
+property and locality, boundaries, documents perused, building and approvals, measurements, the valuation working and
+values (with the value in words), the bank's own questions, opinion, declaration, signature block and a photo annexure.
+Drafts are watermarked; approving produces the final PDF signed with the valuer's signature image (each user draws or
+uploads theirs under **My signature**). Every generated PDF is kept as a version.
 Other sidebar modules show which phase builds them.
 
 ## Site inspection rules
@@ -78,6 +83,22 @@ Other sidebar modules show which phase builds them.
   document areas more than 10% apart.
 - The case's valuer or reviewer, or a manager (with Valuation: Manage), can change it until the report is Submitted.
   A save from an older copy is refused. "Draft Prepared" needs a saved valuation.
+
+## Report rules
+
+- A report needs a submitted inspection and a saved valuation. Missing checklist documents, report photos or the
+  valuer's signature are shown as reminders.
+- "Generate draft" makes a watermarked, unsigned PDF; the first one moves the case from "Inspection Done" to
+  "Draft Prepared". "Quality Review" needs a draft.
+- "Approve & sign" (Reports: Approve, at Quality Review) makes the final PDF signed with the case **valuer's** signature,
+  records who approved it, and moves the case to "Submitted". Users with Reports: Approve can only reach "Submitted" this way.
+- Report wording (dates, place, opinion, declaration, photos per page) can be edited until the report is submitted.
+  Keeping the standard declaration stores nothing, so it follows the inspection date.
+- Signatures are images for now (`SignatureMethod.Image`); Aadhaar eSign and DSC are planned as other methods.
+- **PDF library licence:** reports use QuestPDF under its Community licence, which is free only while the firm's annual
+  gross revenue is under USD 1,000,000 (public-sector bodies and listed companies are not eligible). Buy a QuestPDF
+  licence within 90 days of passing the threshold, before offering ValuPro as SaaS to larger firms. (PDFsharp/MigraDoc
+  became AGPL from version 6.5, so it was not used.) The default font (Lato, bundled with QuestPDF) prints ₹.
 
 ## Assignment workflow rules
 

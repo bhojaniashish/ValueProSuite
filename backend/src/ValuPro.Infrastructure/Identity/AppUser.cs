@@ -19,6 +19,10 @@ public class AppUser : IdentityUser<Guid>, ITenantScoped
     /// <summary>Set when an admin creates the user or resets the password; cleared once they choose their own.</summary>
     public bool MustChangePassword { get; set; }
 
+    /// <summary>The user's signature image (PNG/JPEG), printed on reports they sign. Later: eSign / DSC.</summary>
+    public string? SignatureBlobPath { get; set; }
+    public DateTimeOffset? SignatureUpdatedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
 

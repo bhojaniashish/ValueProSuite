@@ -126,6 +126,9 @@ public static class DependencyInjection
         services.AddScoped<Application.Photos.IPhotoService, Photos.PhotoService>();
         services.AddScoped<Application.Documents.IDocumentService, Documents.DocumentService>();
         services.AddScoped<Application.Valuations.IValuationService, Valuations.ValuationService>();
+        services.AddScoped<Application.Signatures.ISignatureService, Signatures.SignatureService>();
+        services.AddSingleton<Application.Reports.IReportRenderer, Reports.DefaultReportTemplate>();
+        services.AddScoped<Application.Reports.IReportService, Reports.ReportService>();
 
         return services;
     }

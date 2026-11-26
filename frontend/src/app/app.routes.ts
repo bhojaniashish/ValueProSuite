@@ -16,6 +16,7 @@ const BUILT: Record<string, Routes[number]['loadComponent']> = {
   photos: () => import('./features/photos/photos-page').then((m) => m.PhotosPage),
   documents: () => import('./features/documents/documents-page').then((m) => m.DocumentsPage),
   valuation: () => import('./features/valuations/valuations-page').then((m) => m.ValuationsPage),
+  reports: () => import('./features/reports/reports-page').then((m) => m.ReportsPage),
 };
 
 const moduleRoutes: Routes = NAVIGATION.flatMap((g) => g.items)
@@ -40,6 +41,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./layout/shell').then((m) => m.Shell),
     children: [
+      {
+        path: 'account/signature',
+        title: 'My signature · ValuPro',
+        loadComponent: () => import('./features/account/my-signature').then((m) => m.MySignaturePage),
+      },
       {
         path: 'change-password',
         title: 'Change password · ValuPro',
@@ -103,6 +109,13 @@ export const routes: Routes = [
             canActivate: [permissionGuard],
             data: { permission: Permission.valuationView },
             loadComponent: () => import('./features/valuations/valuation-page').then((m) => m.ValuationPage),
+          },
+          {
+            path: 'reports/:id',
+            title: 'Report · ValuPro',
+            canActivate: [permissionGuard],
+            data: { permission: Permission.reportsView },
+            loadComponent: () => import('./features/reports/report-page').then((m) => m.ReportPage),
           },
           ...moduleRoutes,
           {

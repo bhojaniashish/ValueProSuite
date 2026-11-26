@@ -53,6 +53,7 @@
       @if (menuOpen()) {
         <div class="menu" role="menu">
           <div class="menu-head">{{ auth.user()?.email }}</div>
+          <a role="menuitem" routerLink="/account/signature" (click)="menuOpen.set(false)"><i class="fa-solid fa-signature"></i> My signature</a>
           <a role="menuitem" routerLink="/change-password"><i class="fa-solid fa-lock"></i> Change password</a>
           <button class="out" type="button" role="menuitem" (click)="auth.logout()">
             <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign out

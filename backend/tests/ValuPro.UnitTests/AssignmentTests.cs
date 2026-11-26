@@ -9,6 +9,7 @@ using ValuPro.Application.Properties;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Inspections;
 using ValuPro.Domain.Valuations;
+using ValuPro.Domain.Reports;
 using ValuPro.Domain.Banks;
 using ValuPro.Domain.Clients;
 using ValuPro.Domain.Properties;
@@ -199,6 +200,8 @@ public class AssignmentTests : IAsyncLifetime
         var id = a.Assignment.Id;
         Db.Add(new Inspection { AssignmentId = id, StartedByName = "Test", Status = InspectionStatus.Submitted });
         Db.Add(new Valuation { AssignmentId = id, ValuedByName = "Test", FairMarketValue = 1 });
+        Db.Add(new ReportFile { AssignmentId = id, Number = 1, Kind = ReportKind.Draft, BlobPath = "x", GeneratedByName = "Test" });
+        Db.Add(new ReportFile { AssignmentId = id, Number = 2, Kind = ReportKind.Final, BlobPath = "y", GeneratedByName = "Test" });
         await Db.SaveChangesAsync();
         foreach (var s in new[] { AssignmentStatus.SiteVisitScheduled, AssignmentStatus.InspectionDone, AssignmentStatus.DraftPrepared, AssignmentStatus.QualityReview })
             Assert.True((await MoveAsync(id, s)).IsSuccess);
