@@ -11,7 +11,7 @@ import { BankBadge } from '../banks/bank-badge';
 import { DocumentStrip } from '../documents/document-strip';
 import { PhotoStrip } from '../photos/photo-strip';
 import { AssignmentFormDialog } from './assignment-form-dialog';
-import { AssignmentDetail, AssignmentsApi, AssignmentStatus, priorityBadge, rupees, shortDate, STAGES, statusMeta } from './assignments.api';
+import { AssignmentDetail, AssignmentsApi, AssignmentStatus, caseTypeLabel, priorityBadge, rupees, shortDate, STAGES, statusMeta } from './assignments.api';
 import { MoveDialog, MoveKind } from './move-dialog';
 
 @Component({
@@ -43,6 +43,7 @@ export class AssignmentDetailPage implements OnInit {
   protected readonly canViewProperties = computed(() => this.auth.hasPermission(Permission.propertiesView));
   protected readonly canViewInspection = computed(() => this.auth.hasPermission(Permission.inspectionsView));
   protected readonly canViewValuation = computed(() => this.auth.hasPermission(Permission.valuationView));
+  protected readonly caseTypeLabel = caseTypeLabel;
   protected readonly canViewReport = computed(() => this.auth.hasPermission(Permission.reportsView));
 
   protected readonly a = computed(() => this.detail()!.assignment);

@@ -150,6 +150,11 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("BranchId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CaseType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<Guid?>("ClientId")
                         .HasColumnType("uniqueidentifier");
 
@@ -176,6 +181,9 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("PreviousAssignmentId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Priority")
                         .IsRequired()
@@ -228,6 +236,8 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                     b.HasIndex("BranchId");
 
                     b.HasIndex("ClientId");
+
+                    b.HasIndex("PreviousAssignmentId");
 
                     b.HasIndex("PropertyId");
 

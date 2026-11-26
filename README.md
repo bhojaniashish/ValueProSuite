@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 3 in progress** (Phases 0–2 done; Reports with the default template built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 3 in progress** (Phases 0–2 done; Reports with the default template and stage inspections built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -41,6 +41,11 @@ property and locality, boundaries, documents perused, building and approvals, me
 values (with the value in words), the bank's own questions, opinion, declaration, signature block and a photo annexure.
 Drafts are watermarked; approving produces the final PDF signed with the valuer's signature image (each user draws or
 uploads theirs under **My signature**). Every generated PDF is kept as a version.
+**Stage inspections / re-inspections** (Phase 3): construction-loan cases follow an earlier case on the same property.
+The inspection gets a "Construction progress" step (weighted stages of work, quick done-% chips, overall completion,
+comparison with the last visit); the valuation works out value of work done, the bank's eligible share and the release
+recommended now (carrying cost, finance % and disbursements from the previous visit); the report prints as a
+STAGE INSPECTION / RE-INSPECTION REPORT with the stage table and a disbursement table. Market value is optional.
 Other sidebar modules show which phase builds them.
 
 ## Site inspection rules
@@ -99,6 +104,18 @@ Other sidebar modules show which phase builds them.
   gross revenue is under USD 1,000,000 (public-sector bodies and listed companies are not eligible). Buy a QuestPDF
   licence within 90 days of passing the threshold, before offering ValuPro as SaaS to larger firms. (PDFsharp/MigraDoc
   became AGPL from version 6.5, so it was not used.) The default font (Lato, bundled with QuestPDF) prints ₹.
+
+## Stage inspection rules
+
+- Case type is Valuation, Stage inspection or Re-inspection. A stage / re-inspection case can follow an earlier case,
+  which must be on the same property (the list offers cases linked to the property register).
+- Overall completion = Σ (stage weight × done %). Weights must total 100 before the inspection can be submitted; the
+  current work and "as per approved plan" are required, while age, condition and measurements are not.
+- Value of work done = estimated cost × completion. Eligible = work done × finance % (capped at the sanctioned loan).
+  Release = eligible − already disbursed, rounded to ₹1,000 and never below zero. Warnings: no cost, completion lower
+  than the last visit, or more already paid than is eligible.
+- A new visit starts from the previous one: stage table, structure, boundaries, cost, finance %, sanctioned loan, and
+  "already disbursed" = previous disbursed + previous release.
 
 ## Assignment workflow rules
 

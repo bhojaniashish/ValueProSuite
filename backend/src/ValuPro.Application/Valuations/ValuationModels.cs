@@ -35,7 +35,9 @@ public sealed record ValuationCase(
     string PropertySummary,
     PropertyType? PropertyType,
     string? City,
-    string ValuerName);
+    string ValuerName,
+    CaseType CaseType = CaseType.Valuation,
+    string? PreviousNumber = null);
 
 /// <summary>What the bank wants (from Banks).</summary>
 public sealed record BankFactors(RateBasis RateBasis, DepreciationMethod Depreciation, decimal RealizablePercent, decimal DistressPercent);
@@ -115,6 +117,10 @@ public sealed class ValuationInputValidator : AbstractValidator<ValuationInput>
         RuleForEach(x => x.Adjustments).ChildRules(a => a.RuleFor(l => l.Percent).InclusiveBetween(-50, 50).WithMessage("Adjustments should be within ±50%."));
         RuleFor(x => x.Extras.Count).LessThanOrEqualTo(20);
         RuleFor(x => x.Remarks).MaximumLength(2000);
+        RuleFor(x => x.Progress!.EstimatedCost).InclusiveBetween(0, 10_000_000_000).When(x => x.Progress is not null);
+        RuleFor(x => x.Progress!.CompletionPercent).InclusiveBetween(0, 100).When(x => x.Progress is not null).WithMessage("Completion should be 0–100%.");
+        RuleFor(x => x.Progress!.FinancePercent).InclusiveBetween(1, 100).When(x => x.Progress is not null).WithMessage("Finance share should be 1–100%.");
+        RuleFor(x => x.Progress!.DisbursedSoFar).GreaterThanOrEqualTo(0).When(x => x.Progress is not null);
     }
 }
 

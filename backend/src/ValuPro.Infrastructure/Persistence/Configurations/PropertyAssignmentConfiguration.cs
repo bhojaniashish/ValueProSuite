@@ -45,6 +45,8 @@ public sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignmen
         b.Property(x => x.Number).HasMaxLength(30).IsRequired();
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
         b.Property(x => x.Priority).HasConversion<string>().HasMaxLength(10);
+        b.Property(x => x.CaseType).HasConversion<string>().HasMaxLength(20);
+        b.HasIndex(x => x.PreviousAssignmentId);
         b.Property(x => x.BankReference).HasMaxLength(60);
         b.Property(x => x.Purpose).HasMaxLength(100);
         b.Property(x => x.ApplicantName).HasMaxLength(200).IsRequired();

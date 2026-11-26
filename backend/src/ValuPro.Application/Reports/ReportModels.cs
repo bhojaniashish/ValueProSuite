@@ -31,7 +31,8 @@ public sealed record ReportDetail(
     Guid AssignmentId, string Number, AssignmentStatus Status, string BankShortCode, string BankColor, string ApplicantName,
     string PropertySummary, string ValuerName, string? ReviewerName, decimal? FairMarketValue,
     IReadOnlyList<ReportCheck> Checks, ReportFields Fields, IReadOnlyList<ReportFileItem> Files,
-    bool CanEdit, bool CanGenerate, string? GenerateBlockedReason, bool CanApprove, string? ApproveBlockedReason, string? ReadOnlyReason);
+    bool CanEdit, bool CanGenerate, string? GenerateBlockedReason, bool CanApprove, string? ApproveBlockedReason, string? ReadOnlyReason,
+    CaseType CaseType = CaseType.Valuation, decimal? RecommendedRelease = null);
 
 public sealed record SaveReportRequest(DateOnly? ReportDate, DateOnly? ValuationDate, string? Opinion, string? Declaration, string? Place, int PhotosPerPage);
 
@@ -94,7 +95,11 @@ public sealed record ReportModel(
     string Declaration,
     string? Place,
     SignerBlock? Signer,
-    string? ApprovedBy);
+    string? ApprovedBy,
+    CaseType CaseType = CaseType.Valuation,
+    string? PreviousNumber = null,
+    decimal? PreviousPercent = null,
+    DateOnly? PreviousDate = null);
 
 /// <summary>Turns a report model into a PDF. One default template now; bank-specific templates later.</summary>
 public interface IReportRenderer

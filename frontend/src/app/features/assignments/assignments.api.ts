@@ -10,6 +10,14 @@ export type AssignmentStatus =
   | 'New' | 'SiteVisitScheduled' | 'InspectionDone' | 'DraftPrepared' | 'QualityReview' | 'Submitted' | 'InvoiceGenerated' | 'Cancelled';
 
 export type Priority = 'Low' | 'Medium' | 'High';
+export type CaseType = 'Valuation' | 'StageInspection' | 'Reinspection';
+
+export const CASE_TYPES: { value: CaseType; label: string; short: string }[] = [
+  { value: 'Valuation', label: 'Valuation', short: 'Valuation' },
+  { value: 'StageInspection', label: 'Stage inspection (construction loan)', short: 'Stage inspection' },
+  { value: 'Reinspection', label: 'Re-inspection', short: 'Re-inspection' },
+];
+export const caseTypeLabel = (t: CaseType | undefined) => CASE_TYPES.find((x) => x.value === t)?.short ?? 'Valuation';
 
 /** Labels, badge colours and icons from the prototype's STATUS_META. */
 export const STATUS_META: Record<AssignmentStatus, { label: string; badge: string; icon: string }> = {
@@ -57,6 +65,7 @@ export interface AssignmentListItem {
   fee: number;
   isOverdue: boolean;
   createdAt: string;
+  caseType: CaseType;
 }
 
 export interface AssignmentEvent {
@@ -90,6 +99,8 @@ export interface AssignmentDetail {
   remarks: string | null;
   events: AssignmentEvent[];
   moves: AllowedMoves;
+  previousAssignmentId: string | null;
+  previousNumber: string | null;
 }
 
 export interface AssignmentQuery {
@@ -134,6 +145,8 @@ export interface SaveAssignment {
   siteVisitAt: string | null;
   fee: number;
   remarks: string | null;
+  caseType: CaseType;
+  previousAssignmentId: string | null;
 }
 
 export interface Lookups {

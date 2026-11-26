@@ -15,6 +15,17 @@ public enum AssignmentStatus
     Cancelled = 9,
 }
 
+/// <summary>
+/// What the bank asked for. Stage inspections and re-inspections are visits during construction for construction-linked loans:
+/// how far the work has progressed and how much can be released.
+/// </summary>
+public enum CaseType
+{
+    Valuation = 0,
+    StageInspection = 1,
+    Reinspection = 2,
+}
+
 public enum Priority
 {
     Low = 0,
@@ -27,6 +38,10 @@ public class Assignment : TenantEntity
 {
     /// <summary>E.g. VAL/2026/0042: prefix from Settings, year, per-year counter. Never reused.</summary>
     public required string Number { get; set; }
+
+    public CaseType CaseType { get; set; } = CaseType.Valuation;
+    /// <summary>The earlier case this one follows (the original valuation, or the previous stage visit).</summary>
+    public Guid? PreviousAssignmentId { get; set; }
 
     public AssignmentStatus Status { get; set; } = AssignmentStatus.New;
     public Priority Priority { get; set; } = Priority.Medium;

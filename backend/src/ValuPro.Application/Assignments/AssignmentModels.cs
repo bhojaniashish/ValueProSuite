@@ -24,7 +24,8 @@ public sealed record AssignmentListItem(
     DateOnly DueDate,
     decimal Fee,
     bool IsOverdue,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    CaseType CaseType = CaseType.Valuation);
 
 public sealed record AssignmentEventItem(
     DateTimeOffset At,
@@ -47,7 +48,9 @@ public sealed record AssignmentDetail(
     DateTimeOffset? SiteVisitAt,
     string? Remarks,
     IReadOnlyList<AssignmentEventItem> Events,
-    AllowedMoves Moves);
+    AllowedMoves Moves,
+    Guid? PreviousAssignmentId = null,
+    string? PreviousNumber = null);
 
 public sealed record AssignmentQuery(
     string? Search = null,
@@ -85,7 +88,9 @@ public sealed record SaveAssignmentRequest(
     DateOnly DueDate,
     DateTimeOffset? SiteVisitAt,
     decimal Fee,
-    string? Remarks);
+    string? Remarks,
+    CaseType CaseType = CaseType.Valuation,
+    Guid? PreviousAssignmentId = null);
 
 public sealed record MoveRequest(AssignmentStatus To, string? Note, DateTimeOffset? SiteVisitAt);
 

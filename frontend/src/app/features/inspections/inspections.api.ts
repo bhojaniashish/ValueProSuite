@@ -8,7 +8,7 @@ import type { PhotoItem } from '../photos/photos.api';
 import type { PropertyType } from '../properties/properties.api';
 
 export type InspectionStatus = 'Draft' | 'Submitted';
-export type SectionKey = 'visit' | 'location' | 'boundaries' | 'occupancy' | 'building' | 'measurements' | 'approvals' | 'bank' | 'photos' | 'remarks';
+export type SectionKey = 'visit' | 'location' | 'boundaries' | 'occupancy' | 'construction' | 'building' | 'measurements' | 'approvals' | 'bank' | 'photos' | 'remarks';
 
 export interface Opt { value: string; label: string }
 const o = (...labels: string[]): Opt[] => labels.map((l) => ({ value: l, label: l }));
@@ -108,6 +108,10 @@ export interface InspectionData {
   };
   bankAnswers: { question: string; answer: string | null }[];
   remarks: { marketability: string | null; text: string | null };
+  construction: {
+    stages: { name: string | null; weight: number; donePercent: number }[];
+    currentWork: string | null; workersAtSite: number | null; asPerPlan: boolean | null; note: string | null;
+  };
 }
 
 const b = (): Boundary => ({ asPerDocuments: null, atSite: null, matches: null });
@@ -135,6 +139,7 @@ export function normalize(d: Partial<InspectionData> | null | undefined): Inspec
     approvals: { planSeen: null, planAuthority: null, planNumber: null, deviation: null, deviationNote: null, occupancyCertificate: null, note: null },
     bankAnswers: [],
     remarks: { marketability: null, text: null },
+    construction: { stages: [], currentWork: null, workersAtSite: null, asPerPlan: null, note: null },
   };
   const merge = <T extends object>(a: T, over: Partial<T> | undefined): T => ({ ...a, ...(over ?? {}) });
   return {
@@ -151,6 +156,10 @@ export function normalize(d: Partial<InspectionData> | null | undefined): Inspec
     approvals: merge(base.approvals, x.approvals),
     bankAnswers: (x.bankAnswers ?? []).map((a) => ({ question: a.question, answer: a.answer ?? null })),
     remarks: merge(base.remarks, x.remarks),
+    construction: {
+      ...merge(base.construction, x.construction),
+      stages: (x.construction?.stages ?? []).map((s) => ({ name: s.name ?? null, weight: Number(s.weight) || 0, donePercent: Number(s.donePercent) || 0 })),
+    },
   };
 }
 
@@ -171,6 +180,8 @@ export interface InspectionDetail {
   distanceFromPropertyMetres: number | null; farFromProperty: boolean; submittedAt: string | null; submittedByName: string | null;
   version: number; data: InspectionData; photos: PhotoItem[]; bankQuestions: BankQuestion[]; structureTypes: string[];
   landOnly: boolean; missing: MissingItem[]; canEdit: boolean; readOnlyReason: string | null;
+  caseType: 'Valuation' | 'StageInspection' | 'Reinspection';
+  previous: { assignmentId: string; number: string; completionPercent: number | null; inspectedOn: string | null } | null;
 }
 
 export interface GpsFix { latitude: number; longitude: number; accuracyMetres: number | null; at: string | null }

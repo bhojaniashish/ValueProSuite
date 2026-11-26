@@ -22,6 +22,7 @@ export interface ReportDetail {
   checks: ReportCheck[]; fields: ReportFields; files: ReportFileItem[];
   canEdit: boolean; canGenerate: boolean; generateBlockedReason: string | null; canApprove: boolean; approveBlockedReason: string | null;
   readOnlyReason: string | null;
+  caseType: 'Valuation' | 'StageInspection' | 'Reinspection'; recommendedRelease: number | null;
 }
 export interface ReportListItem {
   assignmentId: string; number: string; status: AssignmentStatus; bankShortCode: string; bankColor: string; applicantName: string;

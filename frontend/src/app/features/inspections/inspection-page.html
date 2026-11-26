@@ -254,6 +254,71 @@
                 </div>
               }
 
+              <!-- ============ CONSTRUCTION PROGRESS ============ -->
+              @case ('construction') {
+                <div class="progress-head">
+                  <div class="big-pct">
+                    <span class="small muted">Overall completion</span>
+                    <b class="tnum">{{ overall() }}%</b>
+                  </div>
+                  @if (detail()!.previous; as prev) {
+                    <div class="prev small">
+                      <span class="muted">Previous visit · {{ prev.number }}@if (prev.inspectedOn) { · {{ shortDate(prev.inspectedOn) }} }</span>
+                      @if (prev.completionPercent != null) {
+                        <b>{{ prev.completionPercent }}% → {{ overall() }}%</b>
+                        <span [class.warn]="overall() < prev.completionPercent">{{ overall() >= prev.completionPercent ? '+' : '' }}{{ (overall() - prev.completionPercent).toFixed(2) }}% since then</span>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (weightTotal() !== 100) {
+                  <p class="small warn">Stage weights add up to {{ weightTotal() }}%; they should total 100%.</p>
+                }
+
+                <div class="stages">
+                  @for (st of d.construction.stages; track $index) {
+                    <div class="stage">
+                      <div class="stage-top">
+                        <input class="stage-name" [attr.aria-label]="'Stage ' + ($index + 1) + ' name'" [(ngModel)]="st.name" placeholder="Stage of work" />
+                        <label class="fld w">Weight %<input vpAmount [decimals]="2" [attr.aria-label]="'Weight of ' + st.name" [(ngModel)]="st.weight" /></label>
+                        <label class="fld w">Done %<input vpAmount [decimals]="2" [attr.aria-label]="'Done for ' + st.name" [(ngModel)]="st.donePercent" /></label>
+                        @if (canEdit()) { <button class="btn-icon danger" type="button" [attr.aria-label]="'Remove ' + st.name" (click)="removeStage($index)"><i class="fa-solid fa-xmark"></i></button> }
+                      </div>
+                      <div class="stage-bottom">
+                        <span class="bar"><span [style.width.%]="st.donePercent"></span></span>
+                        @if (canEdit()) {
+                          <span class="quick">
+                            @for (q of quickDone; track q) {
+                              <button type="button" class="q" [class.on]="+st.donePercent === q" (click)="setDone(st, q)">{{ q }}%</button>
+                            }
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+                @if (canEdit()) { <button class="btn btn-ghost btn-sm" type="button" (click)="addStage()"><i class="fa-solid fa-plus"></i> Add stage</button> }
+
+                <div class="form-grid top">
+                  <div class="fld col-2">
+                    <label for="c-now">Work going on at site</label>
+                    <input id="c-now" [(ngModel)]="d.construction.currentWork" placeholder="Fourth slab shuttering; brickwork on 2nd floor" />
+                  </div>
+                  <div class="fld">
+                    <label for="c-workers">Workers at site</label>
+                    <input id="c-workers" type="number" inputmode="numeric" min="0" [(ngModel)]="d.construction.workersAtSite" />
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">As per approved plan?</span>
+                    <vp-yes-no label="As per approved plan" [(value)]="d.construction.asPerPlan" />
+                  </div>
+                  <div class="fld col-2">
+                    <label for="c-note">Notes</label>
+                    <textarea id="c-note" rows="2" [(ngModel)]="d.construction.note" placeholder="Material at site, quality of work, delays…"></textarea>
+                  </div>
+                </div>
+              }
+
               <!-- ============ BUILDING ============ -->
               @case ('building') {
                 <div class="form-grid">

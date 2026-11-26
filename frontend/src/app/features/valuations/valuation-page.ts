@@ -65,6 +65,8 @@ export class ValuationPage implements OnInit {
   private seq = 0;
 
   protected readonly c = computed(() => this.detail()?.case ?? null);
+  /** Stage inspection / re-inspection: the release is the main figure; market value is optional. */
+  protected readonly stageVisit = computed(() => !!this.c() && this.c()!.caseType !== 'Valuation');
   protected readonly canEdit = computed(() => this.detail()?.canEdit ?? false);
   protected readonly location = computed(() => this.detail()?.options.locations.find((l) => l.id === this.locationId()) ?? null);
   protected readonly construction = computed(() => this.detail()?.options.construction.find((c) => c.id === this.constructionId()) ?? null);
@@ -91,6 +93,8 @@ export class ValuationPage implements OnInit {
   private apply(d: ValuationDetail): void {
     this.detail.set(d);
     this.i = structuredClone(d.input);
+    if (d.case.caseType !== 'Valuation' && !this.i.progress)
+      this.i.progress = { estimatedCost: 0, completionPercent: 0, previousPercent: null, financePercent: 80, disbursedSoFar: 0, sanctionedLoan: null };
     this.result.set(d.result);
     this.dirty.set(false);
     // The locality whose band the valuation used (a saved one keeps its band), else the suggested match.
@@ -235,6 +239,11 @@ export class ValuationPage implements OnInit {
     return AREA_BASES.find((b) => b.value === this.i.areaBasis)?.label ?? 'Carpet';
   }
 
+  /** Something to save: a market value, or (stage visits) a release worked out from the estimated cost. */
+  protected canSave(r: ValuationResult): boolean {
+    return r.fairMarketValue > 0 || (this.stageVisit() && !!r.progress && (this.i.progress?.estimatedCost ?? 0) > 0);
+  }
+
   protected belowGuideline(r: ValuationResult): number | null {
     return r.guidelineValue > 0 && r.fairMarketValue > 0 ? Math.round((r.fairMarketValue / r.guidelineValue - 1) * 1000) / 10 : null;
   }
@@ -248,7 +257,10 @@ export class ValuationPage implements OnInit {
     this.saving.set(true);
     try {
       this.apply(await firstValueFrom(this.api.save(this.id(), d.version, this.i)));
-      this.toast.ok('Valuation saved', `${d.case.number}: ${inr(this.result()?.fairMarketValue)}`);
+      const r = this.result();
+      this.toast.ok('Valuation saved', this.stageVisit() && r?.progress
+        ? `${d.case.number}: release ${inr(r.progress.recommendedRelease)}`
+        : `${d.case.number}: ${inr(r?.fairMarketValue)}`);
     } catch (e) {
       const p = toProblem(e);
       this.toast.error(e instanceof HttpErrorResponse && e.status === 409 ? 'Saved elsewhere' : 'Could not save', Object.values(p.fields)[0] ?? p.message);

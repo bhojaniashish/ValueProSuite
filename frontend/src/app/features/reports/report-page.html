@@ -15,7 +15,9 @@
       <b>{{ d.applicantName }}</b>
       <span class="small muted">{{ d.propertySummary }} · Valuer {{ d.valuerName }}@if (d.reviewerName) { · Reviewer {{ d.reviewerName }} }</span>
     </div>
-    @if (d.fairMarketValue != null) {
+    @if (d.recommendedRelease != null) {
+      <div class="fmv"><span class="small muted">Release recommended</span><b class="tnum">{{ inr(d.recommendedRelease) }}</b></div>
+    } @else if (d.fairMarketValue != null) {
       <div class="fmv"><span class="small muted">Fair market value</span><b class="tnum">{{ inr(d.fairMarketValue) }}</b></div>
     }
   </div>

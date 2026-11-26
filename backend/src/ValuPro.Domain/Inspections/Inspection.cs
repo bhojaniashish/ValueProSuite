@@ -108,6 +108,8 @@ public sealed class InspectionData
     /// <summary>The bank's own questions, copied with the answer so later edits to the questionnaire don't change past inspections.</summary>
     public List<BankAnswer> BankAnswers { get; set; } = [];
     public RemarksSection Remarks { get; set; } = new();
+    /// <summary>Stage inspections and re-inspections: how far construction has progressed.</summary>
+    public ConstructionSection Construction { get; set; } = new();
 }
 
 public sealed class VisitSection
@@ -241,6 +243,46 @@ public sealed class ApprovalsSection
     /// <summary>Yes, No, NotApplicable, NotSeen.</summary>
     public string? OccupancyCertificate { get; set; }
     public string? Note { get; set; }
+}
+
+/// <summary>One stage of the work, its share of the whole job (weight %) and how much of it is done.</summary>
+public sealed class ConstructionStage
+{
+    public string? Name { get; set; }
+    public decimal Weight { get; set; }
+    public decimal DonePercent { get; set; }
+}
+
+public sealed class ConstructionSection
+{
+    public List<ConstructionStage> Stages { get; set; } = [];
+    /// <summary>What was going on at site during the visit (e.g. "4th slab shuttering").</summary>
+    public string? CurrentWork { get; set; }
+    public int? WorkersAtSite { get; set; }
+    /// <summary>Is the work as per the approved plan / estimate?</summary>
+    public bool? AsPerPlan { get; set; }
+    public string? Note { get; set; }
+
+    /// <summary>Weighted completion: Σ(weight × done) ÷ Σ weight, to two decimals.</summary>
+    public decimal OverallPercent()
+    {
+        var total = Stages.Sum(s => s.Weight);
+        return total <= 0 ? 0 : Math.Round(Stages.Sum(s => s.Weight * Math.Clamp(s.DonePercent, 0, 100)) / total, 2);
+    }
+
+    /// <summary>A typical split of an RCC building's cost by stage (adds up to 100); the valuer can change it.</summary>
+    public static List<ConstructionStage> Defaults() =>
+    [
+        new() { Name = "Excavation and foundation", Weight = 10 },
+        new() { Name = "Plinth", Weight = 5 },
+        new() { Name = "RCC frame and slabs", Weight = 30 },
+        new() { Name = "Masonry / brickwork", Weight = 15 },
+        new() { Name = "Plaster", Weight = 10 },
+        new() { Name = "Flooring and tiling", Weight = 10 },
+        new() { Name = "Doors, windows and fittings", Weight = 8 },
+        new() { Name = "Plumbing and electrical", Weight = 7 },
+        new() { Name = "Finishing and painting", Weight = 5 },
+    ];
 }
 
 public sealed class BankAnswer

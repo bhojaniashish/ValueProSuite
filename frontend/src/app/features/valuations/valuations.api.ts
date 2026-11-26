@@ -25,7 +25,14 @@ export interface ValuationInput {
   realizablePercent: number; distressPercent: number;
   marketRateMin: number | null; marketRateMax: number | null; documentAreaSqFt: number | null; measuredAreaSqFt: number | null;
   remarks: string | null;
+  progress?: ProgressInput | null;
 }
+
+export interface ProgressInput {
+  estimatedCost: number; completionPercent: number; previousPercent: number | null; financePercent: number;
+  disbursedSoFar: number; sanctionedLoan: number | null;
+}
+export interface ProgressResult { valueOfWorkDone: number; eligibleAmount: number; recommendedRelease: number; progressSincePrevious: number | null }
 
 export interface WorkingLine { label: string; working: string | null; amount: number }
 
@@ -33,7 +40,7 @@ export interface ValuationResult {
   landValue: number; replacementCost: number; depreciation: number; buildingValue: number; compositeValue: number;
   adjustmentAmount: number; extrasAmount: number; marketValueBeforeRounding: number; fairMarketValue: number;
   realizableValue: number; distressValue: number; guidelineValue: number; insuranceValue: number; ratePerSqFt: number;
-  fairMarketValueInWords: string; working: WorkingLine[]; warnings: string[];
+  fairMarketValueInWords: string; working: WorkingLine[]; warnings: string[]; progress: ProgressResult | null;
 }
 
 export interface LocationOption {
@@ -47,6 +54,7 @@ export interface ValuationDetail {
   case: {
     assignmentId: string; number: string; status: AssignmentStatus; bankName: string; bankShortCode: string; bankColor: string;
     applicantName: string; propertySummary: string; propertyType: PropertyType | null; city: string | null; valuerName: string;
+    caseType: 'Valuation' | 'StageInspection' | 'Reinspection'; previousNumber: string | null;
   };
   saved: boolean; version: number; valuedAt: string | null; valuedByName: string | null;
   input: ValuationInput; result: ValuationResult;

@@ -34,6 +34,7 @@ const SECTIONS: SectionDef[] = [
   { key: 'location', label: 'Locality', icon: 'fa-map-location-dot' },
   { key: 'boundaries', label: 'Boundaries', icon: 'fa-draw-polygon' },
   { key: 'occupancy', label: 'Occupancy', icon: 'fa-house-user' },
+  { key: 'construction', label: 'Construction progress', icon: 'fa-helmet-safety' },
   { key: 'building', label: 'Building', icon: 'fa-building' },
   { key: 'measurements', label: 'Measurements', icon: 'fa-ruler-combined' },
   { key: 'approvals', label: 'Approvals', icon: 'fa-stamp' },
@@ -132,7 +133,9 @@ export class InspectionPage implements OnInit {
 
   protected readonly sections = computed(() => {
     const d = this.detail();
-    return SECTIONS.filter((s) => !(s.key === 'building' && d?.landOnly) && !(s.key === 'bank' && !d?.bankQuestions.length));
+    const construction = !!d && d.caseType !== 'Valuation';
+    return SECTIONS.filter((s) => !(s.key === 'building' && d?.landOnly && !construction) && !(s.key === 'bank' && !d?.bankQuestions.length)
+      && !(s.key === 'construction' && !construction));
   });
   protected readonly index = computed(() => this.sections().findIndex((s) => s.key === this.step()));
   protected readonly current = computed(() => this.sections()[this.index()] ?? this.sections()[0]);
@@ -495,6 +498,37 @@ export class InspectionPage implements OnInit {
 
   protected isUploading(p: ShownPhoto): boolean {
     return this.queue.uploading() === p.key;
+  }
+
+  // ---------------- construction progress ----------------
+
+  protected readonly quickDone = [0, 25, 50, 75, 100];
+
+  /** Weighted completion, as the server works it out. */
+  protected overall(): number {
+    const st = this.d.construction.stages;
+    const total = st.reduce((s, x) => s + (Number(x.weight) || 0), 0);
+    if (total <= 0) return 0;
+    return Math.round((st.reduce((s, x) => s + (Number(x.weight) || 0) * Math.min(100, Math.max(0, Number(x.donePercent) || 0)), 0) / total) * 100) / 100;
+  }
+
+  protected weightTotal(): number {
+    return Math.round(this.d.construction.stages.reduce((s, x) => s + (Number(x.weight) || 0), 0) * 100) / 100;
+  }
+
+  protected setDone(stage: { donePercent: number }, v: number): void {
+    stage.donePercent = v;
+    this.changed();
+  }
+
+  protected addStage(): void {
+    this.d.construction.stages.push({ name: '', weight: 0, donePercent: 0 });
+    this.changed();
+  }
+
+  protected removeStage(i: number): void {
+    this.d.construction.stages.splice(i, 1);
+    this.changed();
   }
 
   // ---------------- measurements ----------------

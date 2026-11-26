@@ -138,8 +138,11 @@ public sealed class ReportService(
         [
             new("inspection", "Site inspection submitted", l.Inspection?.Status == InspectionStatus.Submitted, true,
                 l.Inspection is null ? "Not started." : l.Inspection.Status == InspectionStatus.Submitted ? null : "Started but not submitted."),
-            new("valuation", "Valuation saved", l.Valuation is not null, true,
-                l.Valuation is null ? null : $"Fair market value ₹{IndianNumber.Format(l.Valuation.FairMarketValue)}"),
+            new("valuation", Construction(l.Row.A) ? "Progress and release worked out" : "Valuation saved", l.Valuation is not null, true,
+                l.Valuation is null ? null
+                : l.Valuation.Input.Progress is { } pr && Construction(l.Row.A)
+                    ? $"{IndianNumber.Format(pr.CompletionPercent)}% complete, release ₹{IndianNumber.Format(ValuationCalculator.Progress(pr).RecommendedRelease)}"
+                    : $"Fair market value ₹{IndianNumber.Format(l.Valuation.FairMarketValue)}"),
             new("documents", "Documents checklist", pending.Count == 0, false, pending.Count == 0 ? null : $"Not recorded: {string.Join(", ", pending)}."),
             new("photos", "Report photos", l.ReportPhotos.Count > 0 && hasFront, false,
                 l.ReportPhotos.Count == 0 ? "No photos chosen for the report." : hasFront ? $"{l.ReportPhotos.Count} photo(s)." : $"{l.ReportPhotos.Count} photo(s), but no front elevation."),
@@ -147,6 +150,8 @@ public sealed class ReportService(
                 l.ValuerHasSignature ? null : $"{l.Row.ValuerName} has not saved a signature yet (needed to approve)."),
         ];
     }
+
+    private static bool Construction(Assignment a) => a.CaseType is CaseType.StageInspection or CaseType.Reinspection;
 
     private ReportFields Fields(Loaded l)
     {
@@ -187,7 +192,8 @@ public sealed class ReportService(
         return new ReportDetail(a.Id, a.Number, a.Status, l.Row.Bank.ShortCode, l.Row.Bank.BrandColor, a.ApplicantName, a.PropertySummary,
             l.Row.ValuerName, l.Row.ReviewerName, l.Valuation?.FairMarketValue, checks, Fields(l),
             l.Files.Select(f => new ReportFileItem(f.Id, f.Number, f.Kind, f.SizeBytes, f.CreatedAt, f.GeneratedByName, f.FairMarketValue, f.SignedByName, f.ApprovedByName)).ToList(),
-            readOnly is null, generateBlocked is null, generateBlocked, approveBlocked is null, approveBlocked, readOnly);
+            readOnly is null, generateBlocked is null, generateBlocked, approveBlocked is null, approveBlocked, readOnly,
+            l.Row.A.CaseType, Construction(l.Row.A) && l.Valuation?.Input.Progress is { } pr ? ValuationCalculator.Progress(pr).RecommendedRelease : null);
     }
 
     public async Task<Result<ReportDetail>> GetAsync(Guid assignmentId, CancellationToken ct = default) =>
@@ -313,6 +319,7 @@ public sealed class ReportService(
             : string.Join(", ", new[] { row.Branch.Address, row.Branch.City }.Where(s => !string.IsNullOrWhiteSpace(s))) is { Length: > 0 } ba ? ba : null;
         var person = d?.Visit.PersonMet is { } pm ? d.Visit.PersonRelation is { } rel ? $"{pm} ({rel})" : pm : null;
         var valuation = l.Valuation!;
+        var previous = a.PreviousAssignmentId is { } prevId ? await PreviousAsync(prevId, ct) : null;
 
         return new ReportModel(
             draft, version,
@@ -324,7 +331,20 @@ public sealed class ReportService(
             d, person,
             l.Documents.Select(x => new DocumentRow(x.Title ?? DocumentRules.Label(x.Type), x.Availability, x.Number, x.IssuedOn, x.IssuedBy, x.Notes)).ToList(),
             valuation.Input, ValuationCalculator.Calculate(valuation.Input),
-            photos, fields.PhotosPerPage, fields.Opinion, fields.Declaration, fields.Place, signer, approvedBy);
+            photos, fields.PhotosPerPage, fields.Opinion, fields.Declaration, fields.Place, signer, approvedBy,
+            a.CaseType, previous?.Number, previous?.Percent, previous?.On);
+    }
+
+    private sealed record PreviousVisit(string Number, decimal? Percent, DateOnly? On);
+
+    private async Task<PreviousVisit?> PreviousAsync(Guid prevId, CancellationToken ct)
+    {
+        var number = await db.Set<Assignment>().IgnoreQueryFilters([AppDbContext.SoftDeleteFilter]).Where(x => x.Id == prevId).Select(x => x.Number).FirstOrDefaultAsync(ct);
+        if (number is null) return null;
+        var pi = await db.Set<Inspection>().AsNoTracking().FirstOrDefaultAsync(x => x.AssignmentId == prevId, ct);
+        decimal? percent = pi is null ? null : pi.Data.Construction.Stages.Count > 0 ? pi.Data.Construction.OverallPercent() : pi.Data.Building.CompletionPercent;
+        DateOnly? on = pi is null ? null : DateOnly.FromDateTime((pi.SubmittedAt ?? pi.StartedAt).ToOffset(India).DateTime);
+        return new PreviousVisit(number, percent, on);
     }
 
     private async Task<byte[]?> ReadAsync(string path, CancellationToken ct)

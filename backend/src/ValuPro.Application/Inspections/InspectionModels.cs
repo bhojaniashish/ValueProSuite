@@ -73,7 +73,12 @@ public sealed record InspectionDetail(
     bool LandOnly,
     IReadOnlyList<MissingItem> Missing,
     bool CanEdit,
-    string? ReadOnlyReason);
+    string? ReadOnlyReason,
+    CaseType CaseType = CaseType.Valuation,
+    PreviousProgress? Previous = null);
+
+/// <summary>The earlier visit a stage inspection / re-inspection follows: its case number, overall completion and date.</summary>
+public sealed record PreviousProgress(Guid AssignmentId, string Number, decimal? CompletionPercent, DateOnly? InspectedOn);
 
 public sealed record GpsFix(decimal Latitude, decimal Longitude, int? AccuracyMetres, DateTimeOffset? At);
 
@@ -111,6 +116,12 @@ public sealed class SaveInspectionRequestValidator : AbstractValidator<SaveInspe
             .WithMessage("Floors should be 0–200.");
         RuleFor(x => x.Data.Measurements.Floors.Count).LessThanOrEqualTo(60).When(x => x.Data is not null).WithMessage("Up to 60 floor rows.");
         RuleFor(x => x.Data.BankAnswers.Count).LessThanOrEqualTo(100).When(x => x.Data is not null);
+        RuleFor(x => x.Data.Construction.Stages.Count).LessThanOrEqualTo(30).When(x => x.Data is not null).WithMessage("Up to 30 stages.");
+        RuleForEach(x => x.Data.Construction.Stages).ChildRules(st =>
+        {
+            st.RuleFor(c => c.Weight).InclusiveBetween(0, 100).WithMessage("Stage weight should be 0–100%.");
+            st.RuleFor(c => c.DonePercent).InclusiveBetween(0, 100).WithMessage("Stage completion should be 0–100%.");
+        }).When(x => x.Data is not null);
         RuleFor(x => x.Data.Remarks.Text).MaximumLength(4000).When(x => x.Data is not null).WithMessage("Keep remarks under 4,000 characters.");
     }
 }

@@ -69,7 +69,7 @@ public sealed class AssignmentService(
 
     private AssignmentListItem ToItem(Row r) => new(r.A.Id, r.A.Number, r.A.Status, r.A.Priority, r.A.BankId, r.BankShortCode,
         r.BankName, r.BankColor, r.A.BranchId, r.BranchName, r.A.ApplicantName, r.A.ClientId, r.A.PropertySummary, r.A.PropertyId,
-        r.A.ValuerId, r.ValuerName, r.A.DueDate, r.A.Fee, r.A.IsOpen && r.A.DueDate < Today, r.A.CreatedAt);
+        r.A.ValuerId, r.ValuerName, r.A.DueDate, r.A.Fee, r.A.IsOpen && r.A.DueDate < Today, r.A.CreatedAt, r.A.CaseType);
 
     // ---------------- read ----------------
 
@@ -159,7 +159,11 @@ public sealed class AssignmentService(
         var a = row.A;
         return new AssignmentDetail(ToItem(row), a.BankReference, a.Purpose, a.ApplicantPhone, a.ReviewerId, reviewer, a.SiteVisitAt,
             a.Remarks, [.. events.Select(e => new AssignmentEventItem(e.At, e.ByName, e.FromStatus, e.ToStatus, e.Title, e.Note))],
-            Moves(a, await InspectionSubmittedAsync(a.Id, ct), await ValuedAsync(a.Id, ct), await ReportsAsync(a.Id, ct)));
+            Moves(a, await InspectionSubmittedAsync(a.Id, ct), await ValuedAsync(a.Id, ct), await ReportsAsync(a.Id, ct)),
+            a.PreviousAssignmentId,
+            a.PreviousAssignmentId is { } prev
+                ? await db.Set<Assignment>().IgnoreQueryFilters([AppDbContext.SoftDeleteFilter]).Where(x => x.Id == prev).Select(x => x.Number).FirstOrDefaultAsync(ct)
+                : null);
     }
 
     /// <summary>Which reports exist: Quality Review needs a draft, Submitted needs the approved (final) report.</summary>
@@ -392,6 +396,15 @@ public sealed class AssignmentService(
         if (r.BranchId is { } branchId && !await db.Set<BankBranch>().AnyAsync(b => b.Id == branchId && b.BankId == r.BankId, ct))
             return Error.Validation($"Choose a branch of {bank.ShortCode}.", "branchId");
 
+        if (r.PreviousAssignmentId is { } prevId)
+        {
+            if (existing is not null && prevId == existing.Id) return Error.Validation("A case can't follow itself.", "previousAssignmentId");
+            var prev = await db.Set<Assignment>().Where(x => x.Id == prevId).Select(x => new { x.PropertyId }).FirstOrDefaultAsync(ct);
+            if (prev is null) return Error.Validation("Choose the earlier case from the list.", "previousAssignmentId");
+            if (r.PropertyId is not null && prev.PropertyId is not null && prev.PropertyId != r.PropertyId)
+                return Error.Validation("The earlier case is for a different property.", "previousAssignmentId");
+        }
+
         if (!await IsInRoleAsync(r.ValuerId, ValuerRoles, ct))
             return Error.Validation("Choose an active valuer.", "valuerId");
         if (r.ReviewerId is { } reviewer && !await IsInRoleAsync(reviewer, ReviewerRoles, ct))
@@ -447,6 +460,8 @@ public sealed class AssignmentService(
         a.SiteVisitAt = r.SiteVisitAt ?? a.SiteVisitAt;
         a.Fee = Math.Round(r.Fee, 2);
         a.Remarks = Clean(r.Remarks);
+        a.CaseType = r.CaseType;
+        a.PreviousAssignmentId = r.PreviousAssignmentId;
     }
 
     private async Task<string> NextNumberAsync(CancellationToken ct)

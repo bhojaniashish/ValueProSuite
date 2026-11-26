@@ -32,9 +32,40 @@
 
   <div class="layout">
     <fieldset class="inputs" [disabled]="!canEdit()" (input)="changed()" (change)="changed()">
+      @if (stageVisit() && i.progress; as p) {
+        <section class="card sec">
+          <div class="sec-head"><h3>Progress &amp; disbursement</h3>
+            <span class="small muted">{{ d.case.caseType === 'Reinspection' ? 'Re-inspection' : 'Stage inspection' }}@if (d.case.previousNumber) { · follows {{ d.case.previousNumber }} }</span></div>
+          <div class="sec-body form-grid">
+            <div class="fld">
+              <label for="p-cost">Estimated cost of construction</label>
+              <div class="fld-pre"><span>₹</span><input vpAmount id="p-cost" name="pcost" [(ngModel)]="p.estimatedCost" /></div>
+              <span class="hint">As per the estimate the loan was sanctioned on.</span>
+            </div>
+            <div class="fld">
+              <label for="p-done">Completion</label>
+              <div class="fld-suf"><input vpAmount [decimals]="2" id="p-done" name="pdone" [(ngModel)]="p.completionPercent" /><span>%</span></div>
+              <span class="hint">From the site inspection's stage table@if (p.previousPercent != null) { · last visit {{ p.previousPercent }}% }</span>
+            </div>
+            <div class="fld">
+              <label for="p-fin">Bank finances</label>
+              <div class="fld-suf"><input vpAmount [decimals]="2" id="p-fin" name="pfin" [(ngModel)]="p.financePercent" /><span>% of cost</span></div>
+            </div>
+            <div class="fld">
+              <label for="p-paid">Already disbursed</label>
+              <div class="fld-pre"><span>₹</span><input vpAmount id="p-paid" name="ppaid" [(ngModel)]="p.disbursedSoFar" /></div>
+            </div>
+            <div class="fld">
+              <label for="p-cap">Sanctioned loan <span class="hint">(optional cap)</span></label>
+              <div class="fld-pre"><span>₹</span><input vpAmount id="p-cap" name="pcap" [(ngModel)]="p.sanctionedLoan" /></div>
+            </div>
+          </div>
+        </section>
+      }
+
       <!-- Method -->
       <section class="card sec">
-        <div class="sec-head"><h3>Method</h3></div>
+        <div class="sec-head"><h3>Method</h3>@if (stageVisit()) { <span class="small muted">Market value is optional on a stage visit</span> }</div>
         <div class="sec-body">
           <vp-choice label="Valuation method" [options]="methodOptions" [value]="i.method" (valueChange)="setMethod($event)" />
         </div>
@@ -235,14 +266,31 @@
 
     <!-- Result -->
     <aside class="result card" aria-live="polite">
-      @if (result(); as r) {
+      @if (stageVisit() && result()?.progress; as pr) {
         <div class="fmv">
-          <span class="small muted">Fair market value @if (calculating()) { <i class="fa-solid fa-spinner fa-spin"></i> }</span>
+          <span class="small muted">Release recommended now @if (calculating()) { <i class="fa-solid fa-spinner fa-spin"></i> }</span>
+          <b class="tnum big">{{ inr(pr.recommendedRelease) }}</b>
+          <span class="small muted">{{ i.progress?.completionPercent }}% complete@if (pr.progressSincePrevious != null) { · {{ pr.progressSincePrevious >= 0 ? '+' : '' }}{{ pr.progressSincePrevious }}% since the last visit }</span>
+        </div>
+        <dl class="vals">
+          <div><dt>Value of work done</dt><dd class="tnum">{{ inr(pr.valueOfWorkDone) }}</dd></div>
+          <div><dt>Eligible ({{ i.progress?.financePercent }}% finance)</dt><dd class="tnum">{{ inr(pr.eligibleAmount) }}</dd></div>
+          <div><dt>Already disbursed</dt><dd class="tnum">{{ inr(i.progress?.disbursedSoFar) }}</dd></div>
+        </dl>
+      }
+      @if (result(); as r) {
+        @if (stageVisit() && !r.fairMarketValue) {
+          <p class="small muted no-fmv"><i class="fa-solid fa-circle-info"></i> Market value not worked out. It is optional on a stage visit; fill the rate below if the bank wants it.</p>
+        } @else {
+        <div class="fmv">
+          <span class="small muted">{{ stageVisit() ? 'Market value as on date' : 'Fair market value' }} @if (calculating()) { <i class="fa-solid fa-spinner fa-spin"></i> }</span>
           <b class="tnum big">{{ inr(r.fairMarketValue) }}</b>
           <span class="words">{{ r.fairMarketValueInWords }}</span>
           @if (r.ratePerSqFt) { <span class="small muted">≈ {{ inr(r.ratePerSqFt) }} per sq.ft</span> }
         </div>
+        }
         @if (calcError()) { <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ calcError() }}</div> }
+        @if (!stageVisit() || r.fairMarketValue) {
         <dl class="vals">
           <div><dt>Realizable ({{ i.realizablePercent }}%)</dt><dd class="tnum">{{ inr(r.realizableValue) }}</dd></div>
           <div><dt>Distress ({{ i.distressPercent }}%)</dt><dd class="tnum">{{ inr(r.distressValue) }}</dd></div>
@@ -250,6 +298,7 @@
             @if (belowGuideline(r); as diff) { <span class="small" [class.warn]="diff < -10">{{ diff > 0 ? '+' : '' }}{{ diff }}%</span> }</dd></div>
           <div><dt>Insurance (rebuild)</dt><dd class="tnum">{{ r.insuranceValue ? inr(r.insuranceValue) : '—' }}</dd></div>
         </dl>
+        }
         @if (r.warnings.length) {
           <ul class="warns">@for (w of r.warnings; track w) { <li><i class="fa-solid fa-triangle-exclamation"></i> {{ w }}</li> }</ul>
         }
@@ -270,7 +319,7 @@
         @if (canEdit()) {
           <div class="acts">
             @if (dirty() && d.saved) { <button class="btn btn-ghost" type="button" (click)="reset()">Undo changes</button> }
-            <button class="btn btn-pri" type="button" (click)="save()" [disabled]="saving() || calculating() || !r.fairMarketValue || (!dirty() && d.saved)">
+            <button class="btn btn-pri" type="button" (click)="save()" [disabled]="saving() || calculating() || !canSave(r) || (!dirty() && d.saved)">
               <i class="fa-solid" [class]="saving() ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> {{ d.saved ? 'Save changes' : 'Save valuation' }}
             </button>
           </div>
@@ -282,9 +331,13 @@
   <!-- Phones: the value stays in view -->
   @if (result(); as r) {
     <div class="mobile-bar">
-      <div><span class="small muted">Market value</span><b class="tnum">{{ short(r.fairMarketValue) }}</b></div>
+      @if (stageVisit() && r.progress) {
+        <div><span class="small muted">Release now</span><b class="tnum">{{ short(r.progress.recommendedRelease) }}</b></div>
+      } @else {
+        <div><span class="small muted">Market value</span><b class="tnum">{{ short(r.fairMarketValue) }}</b></div>
+      }
       @if (canEdit()) {
-        <button class="btn btn-pri" type="button" (click)="save()" [disabled]="saving() || calculating() || !r.fairMarketValue || (!dirty() && d.saved)">
+        <button class="btn btn-pri" type="button" (click)="save()" [disabled]="saving() || calculating() || !canSave(r) || (!dirty() && d.saved)">
           <i class="fa-solid" [class]="saving() ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> Save
         </button>
       }

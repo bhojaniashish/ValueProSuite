@@ -11,6 +11,7 @@
         <span class="badge" [class]="meta(a().status).badge"><i class="fa-solid" [class]="meta(a().status).icon"></i> {{ meta(a().status).label }}</span>
         <span class="badge" [class]="priorityBadge(a().priority)">{{ a().priority }}</span>
         @if (a().isOverdue) { <span class="badge b-danger"><i class="fa-solid fa-clock"></i> Overdue</span> }
+        @if (a().caseType && a().caseType !== 'Valuation') { <span class="badge b-purple"><i class="fa-solid fa-helmet-safety"></i> {{ caseTypeLabel(a().caseType) }}</span> }
       </h2>
       <p class="muted">{{ a().propertySummary }} · {{ a().bankName }}</p>
     </div>
@@ -86,6 +87,9 @@
         <div><dt>Branch</dt><dd>{{ a().branchName || '—' }}</dd></div>
         <div><dt>Bank Reference</dt><dd class="tnum">{{ d.bankReference || '—' }}</dd></div>
         <div><dt>Purpose</dt><dd>{{ d.purpose || '—' }}</dd></div>
+        @if (d.previousAssignmentId) {
+          <div><dt>Follows</dt><dd><a [routerLink]="['/assignments', d.previousAssignmentId]">{{ d.previousNumber }}</a></dd></div>
+        }
         <div><dt>Applicant</dt><dd>{{ a().applicantName }} @if (a().clientId) { <i class="fa-solid fa-link linked" title="Linked to client record"></i> }</dd></div>
         <div><dt>Valuer</dt><dd>{{ a().valuerName }}</dd></div>
         <div><dt>Reviewer</dt><dd>{{ d.reviewerName || 'Not assigned' }}</dd></div>

@@ -98,13 +98,15 @@ public sealed class ValuationService(AppDbContext db, ICurrentUser me, TimeProvi
         var options = await OptionsAsync(row, inspection, ct);
 
         var suggestions = new List<string>();
+        var previous = row.A.PreviousAssignmentId is { } prevId ? await PreviousAsync(prevId, ct) : null;
         var input = saved?.Input ?? Suggest(row, inspection, options, suggestions);
+        if (saved is null && IsConstruction(row.A)) input.Progress = SuggestProgress(inspection, previous, suggestions);
         var reason = ReadOnlyReason(row.A);
         var p = row.Property;
         var d = inspection?.Data;
         return new ValuationDetail(
             new ValuationCase(row.A.Id, row.A.Number, row.A.Status, row.Bank.Name, row.Bank.ShortCode, row.Bank.BrandColor, row.A.ApplicantName,
-                row.A.PropertySummary, p?.Type, p?.City, row.ValuerName),
+                row.A.PropertySummary, p?.Type, p?.City, row.ValuerName, row.A.CaseType, previous?.Number),
             saved is not null,
             saved?.Version ?? 0,
             saved?.ValuedAt,
@@ -123,6 +125,46 @@ public sealed class ValuationService(AppDbContext db, ICurrentUser me, TimeProvi
             saved is null ? suggestions : [],
             reason is null,
             reason);
+    }
+
+    private static bool IsConstruction(Assignment a) => a.CaseType is CaseType.StageInspection or CaseType.Reinspection;
+
+    private sealed record Previous(string Number, decimal? Percent, ProgressInput? Progress, ProgressResult? Result);
+
+    /// <summary>The previous visit's completion and progress figures, to carry the cost and disbursements forward.</summary>
+    private async Task<Previous?> PreviousAsync(Guid prevId, CancellationToken ct)
+    {
+        var number = await db.Set<Assignment>().IgnoreQueryFilters([AppDbContext.SoftDeleteFilter]).Where(a => a.Id == prevId).Select(a => a.Number).FirstOrDefaultAsync(ct);
+        if (number is null) return null;
+        var pi = await db.Set<Inspection>().AsNoTracking().FirstOrDefaultAsync(i => i.AssignmentId == prevId, ct);
+        var pv = await db.Set<Valuation>().AsNoTracking().FirstOrDefaultAsync(v => v.AssignmentId == prevId, ct);
+        decimal? percent = pi is null ? null : pi.Data.Construction.Stages.Count > 0 ? pi.Data.Construction.OverallPercent() : pi.Data.Building.CompletionPercent;
+        var progress = pv?.Input.Progress;
+        return new Previous(number, percent, progress, progress is null ? null : ValuationCalculator.Progress(progress));
+    }
+
+    /// <summary>
+    /// Completion from this visit's stage table; cost, finance share and disbursements carried from the previous visit
+    /// (assuming its recommended release was paid).
+    /// </summary>
+    private static ProgressInput SuggestProgress(Inspection? inspection, Previous? previous, List<string> notes)
+    {
+        var c = inspection?.Data.Construction;
+        var p = new ProgressInput
+        {
+            CompletionPercent = c is { Stages.Count: > 0 } ? c.OverallPercent() : inspection?.Data.Building.CompletionPercent ?? 0,
+            PreviousPercent = previous?.Percent,
+            EstimatedCost = previous?.Progress?.EstimatedCost ?? 0,
+            FinancePercent = previous?.Progress?.FinancePercent ?? 80,
+            DisbursedSoFar = previous?.Progress is { } pp ? pp.DisbursedSoFar + (previous.Result?.RecommendedRelease ?? 0) : 0,
+            SanctionedLoan = previous?.Progress?.SanctionedLoan,
+        };
+        notes.Add($"Completion {IndianNumber.Format(p.CompletionPercent)}% from this visit's stage table.");
+        if (previous?.Progress is not null)
+            notes.Add($"Estimated cost, finance share and disbursements carried from {previous.Number}, assuming its recommended release of ₹{IndianNumber.Format(previous.Result!.RecommendedRelease)} was paid. Correct the amount disbursed if not.");
+        else
+            notes.Add("Enter the estimated cost of construction and the amount disbursed so far (from the bank's sanction letter).");
+        return p;
     }
 
     /// <summary>Inspection areas are in the unit the valuer chose; valuations work in sq.ft.</summary>
@@ -274,7 +316,9 @@ public sealed class ValuationService(AppDbContext db, ICurrentUser me, TimeProvi
         if (ReadOnlyReason(a) is { } reason) return Error.Forbidden(reason);
 
         var result = ValuationCalculator.Calculate(r.Input);
-        if (result.FairMarketValue <= 0) return Error.Validation("Enter the area and rate so there is a value to save.");
+        var hasProgress = result.Progress is not null && r.Input.Progress!.EstimatedCost > 0;
+        if (result.FairMarketValue <= 0 && !hasProgress)
+            return Error.Validation(IsConstruction(a) ? "Enter the estimated cost (and completion) so there is a release to save." : "Enter the area and rate so there is a value to save.");
 
         var v = await db.Set<Valuation>().FirstOrDefaultAsync(x => x.AssignmentId == assignmentId, ct);
         if (v is null)

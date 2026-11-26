@@ -3,6 +3,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using ValuPro.Application.Reports;
+using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Documents;
 using ValuPro.Domain.Inspections;
 using ValuPro.Domain.Properties;
@@ -97,8 +98,17 @@ public sealed class DefaultReportTemplate : IReportRenderer
     {
         col.Spacing(10);
         var d = m.Inspection;
+        var construction = m.CaseType is CaseType.StageInspection or CaseType.Reinspection;
+        var progress = m.Valuation.Progress is { } pi ? (Input: pi, Result: m.Result.Progress ?? ValuationCalculator.Progress(pi)) : ((ProgressInput Input, ProgressResult Result)?)null;
+        var no = 0;
+        string Next() => (++no).ToString(CultureInfo.InvariantCulture);
 
-        col.Item().AlignCenter().Text("VALUATION REPORT").FontSize(16).Bold().LetterSpacing(0.05f);
+        col.Item().AlignCenter().Text(m.CaseType switch
+        {
+            CaseType.StageInspection => "STAGE INSPECTION REPORT",
+            CaseType.Reinspection => "RE-INSPECTION REPORT",
+            _ => "VALUATION REPORT",
+        }).FontSize(16).Bold().LetterSpacing(0.05f);
         col.Item().Row(row =>
         {
             row.RelativeItem().Column(to =>
@@ -116,7 +126,7 @@ public sealed class DefaultReportTemplate : IReportRenderer
             });
         });
 
-        Section(col, "1", "General", c => KeyValues(c,
+        Section(col, Next(), "General", c => KeyValues(c,
         [
             ("Purpose of valuation", m.Purpose),
             ("Applicant", m.ApplicantName),
@@ -125,9 +135,11 @@ public sealed class DefaultReportTemplate : IReportRenderer
             ("Date of inspection", m.InspectionDate is { } i ? Day(i) : null),
             ("Date of valuation", Day(m.ValuationDate)),
             ("Person met at site", m.PersonMet),
+            ("Previous inspection", m.PreviousNumber is null ? null
+                : Join(" · ", m.PreviousNumber, m.PreviousDate is { } pd ? Day(pd) : null, m.PreviousPercent is { } pp ? $"{N(pp)}% complete" : null)),
         ]));
 
-        Section(col, "2", "Property and location", c => c.Column(p =>
+        Section(col, Next(), "Property and location", c => c.Column(p =>
         {
             p.Spacing(6);
             p.Item().Element(x => KeyValues(x,
@@ -165,7 +177,7 @@ public sealed class DefaultReportTemplate : IReportRenderer
             }
         }));
 
-        Section(col, "3", "Documents perused", c =>
+        Section(col, Next(), "Documents perused", c =>
         {
             if (m.Documents.Count == 0)
             {
@@ -197,7 +209,8 @@ public sealed class DefaultReportTemplate : IReportRenderer
 
         if (d is not null)
         {
-            Section(col, "4", "Building, construction and approvals", c => KeyValues(c,
+            if (construction) Section(col, Next(), "Construction progress", c => Construction(c, m, d));
+            Section(col, Next(), "Building, construction and approvals", c => KeyValues(c,
             [
                 ("Structure", d.Building.StructureType),
                 ("Age of building", d.Building.AgeYears is { } age ? $"{age} years" : null),
@@ -216,7 +229,7 @@ public sealed class DefaultReportTemplate : IReportRenderer
                 ("Occupancy / BU certificate", Oc(d.Approvals.OccupancyCertificate)),
             ]));
 
-            Section(col, "5", "Measurements (sq.ft unless stated)", c => c.Table(t =>
+            Section(col, Next(), "Measurements (sq.ft unless stated)", c => c.Table(t =>
             {
                 var unit = d.Measurements.Unit == "SqM" ? " (sq.m)" : "";
                 t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(); cd.RelativeColumn(); });
@@ -237,11 +250,12 @@ public sealed class DefaultReportTemplate : IReportRenderer
             }));
         }
 
-        Section(col, d is null ? "4" : "6", "Valuation", c => Valuation(c, m));
+        if (progress is { } pr) Section(col, Next(), "Progress and disbursement", c => Disbursement(c, pr.Input, pr.Result));
+        if (m.Result.FairMarketValue > 0) Section(col, Next(), construction ? "Market value as on date" : "Valuation", c => Valuation(c, m));
 
         var answers = d?.BankAnswers.Where(a => !string.IsNullOrWhiteSpace(a.Answer)).ToList() ?? [];
         if (answers.Count > 0)
-            Section(col, d is null ? "5" : "7", $"{m.BankName}: additional information", c => c.Table(t =>
+            Section(col, Next(), $"{m.BankName}: additional information", c => c.Table(t =>
             {
                 t.ColumnsDefinition(cd => { cd.RelativeColumn(3); cd.RelativeColumn(2); });
                 foreach (var a in answers)
@@ -255,14 +269,29 @@ public sealed class DefaultReportTemplate : IReportRenderer
         {
             o.Spacing(6);
             o.Item().Text(string.IsNullOrWhiteSpace(m.Opinion) ? "—" : m.Opinion);
-            o.Item().Background(Soft).Padding(8).Text(t =>
-            {
-                t.Span("In my opinion, the fair market value of the above property as on ").FontColor(Muted);
-                t.Span(Day(m.ValuationDate)).Bold();
-                t.Span(" is ").FontColor(Muted);
-                t.Span($"₹ {N(m.Result.FairMarketValue)}").Bold();
-                t.Span($" ({m.Result.FairMarketValueInWords}).").FontColor(Muted);
-            });
+            if (progress is { } pr)
+                o.Item().Background(Soft).Padding(8).Text(t =>
+                {
+                    t.Span("In my opinion, the construction is ").FontColor(Muted);
+                    t.Span($"{N(pr.Input.CompletionPercent)}% complete").Bold();
+                    t.Span(" as on ").FontColor(Muted);
+                    t.Span(Day(m.ValuationDate)).Bold();
+                    t.Span(pr.Result.RecommendedRelease > 0 ? ", and a further release of " : ". No further release is recommended at this stage.").FontColor(Muted);
+                    if (pr.Result.RecommendedRelease > 0)
+                    {
+                        t.Span($"₹ {N(pr.Result.RecommendedRelease)}").Bold();
+                        t.Span($" ({IndianNumber.ToWords(pr.Result.RecommendedRelease)}) may be considered.").FontColor(Muted);
+                    }
+                });
+            if (m.Result.FairMarketValue > 0)
+                o.Item().Background(Soft).Padding(8).Text(t =>
+                {
+                    t.Span(construction ? "The fair market value of the property in its present state as on " : "In my opinion, the fair market value of the above property as on ").FontColor(Muted);
+                    t.Span(Day(m.ValuationDate)).Bold();
+                    t.Span(" is ").FontColor(Muted);
+                    t.Span($"₹ {N(m.Result.FairMarketValue)}").Bold();
+                    t.Span($" ({m.Result.FairMarketValueInWords}).").FontColor(Muted);
+                });
         }));
 
         col.Item().EnsureSpace(230).Element(c => Declaration(c, m));
@@ -320,6 +349,59 @@ public sealed class DefaultReportTemplate : IReportRenderer
             });
             col.Item().Text($"Fair market value in words: {r.FairMarketValueInWords}").Italic();
             if (!string.IsNullOrWhiteSpace(v.Remarks)) col.Item().Text(v.Remarks).FontColor(Muted);
+        });
+    }
+
+    private static void Construction(IContainer c, ReportModel m, InspectionData d)
+    {
+        var con = d.Construction;
+        c.Column(col =>
+        {
+            col.Spacing(8);
+            col.Item().Table(t =>
+            {
+                t.ColumnsDefinition(cd => { cd.RelativeColumn(3); cd.RelativeColumn(1); cd.RelativeColumn(1); cd.RelativeColumn(1.2f); });
+                t.Header(h => { Head(h, "Stage of work"); Head(h, "Weight %", right: true); Head(h, "Done %", right: true); Head(h, "Contribution %", right: true); });
+                foreach (var st in con.Stages)
+                {
+                    t.Cell().Element(Cell).Text(st.Name ?? "Stage");
+                    t.Cell().Element(Cell).AlignRight().Text(N(st.Weight));
+                    t.Cell().Element(Cell).AlignRight().Text(N(st.DonePercent));
+                    t.Cell().Element(Cell).AlignRight().Text(N(Math.Round(st.Weight * st.DonePercent / 100, 2)));
+                }
+                t.Cell().ColumnSpan(3).Element(x => Cell(x.Background(Soft))).Text("Overall completion").Bold();
+                t.Cell().Element(x => Cell(x.Background(Soft))).AlignRight().Text($"{N(con.OverallPercent())}%").Bold().FontColor(m.Firm.Color);
+            });
+            col.Item().Element(x => KeyValues(x,
+            [
+                ("Previous visit", m.PreviousPercent is { } pp
+                    ? $"{N(pp)}% on {(m.PreviousDate is { } pd ? Day(pd) : "the last visit")} ({m.PreviousNumber}) · progress since then {N(con.OverallPercent() - pp)}%"
+                    : null),
+                ("Work in progress at site", con.CurrentWork),
+                ("Workers at site", con.WorkersAtSite?.ToString(CultureInfo.InvariantCulture)),
+                ("As per approved plan", YesNo(con.AsPerPlan)),
+                ("Remarks", con.Note),
+            ]));
+        });
+    }
+
+    private static void Disbursement(IContainer c, ProgressInput p, ProgressResult r)
+    {
+        c.Table(t =>
+        {
+            t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(1); });
+            void Row(string label, string value, bool strong = false)
+            {
+                var a = t.Cell().Element(x => strong ? Cell(x.Background(Soft)) : Cell(x)).Text(label);
+                var b = t.Cell().Element(x => strong ? Cell(x.Background(Soft)) : Cell(x)).AlignRight().Text(value);
+                if (strong) { a.Bold(); b.Bold(); }
+            }
+            Row("Estimated cost of construction", $"₹ {N(p.EstimatedCost)}");
+            Row("Completion", $"{N(p.CompletionPercent)}%");
+            Row("Value of work done", $"₹ {N(r.ValueOfWorkDone)}");
+            Row($"Eligible at {N(p.FinancePercent)}% finance{(p.SanctionedLoan is > 0 ? $" (capped at the sanctioned ₹{N(p.SanctionedLoan.Value)})" : "")}", $"₹ {N(r.EligibleAmount)}");
+            Row("Already disbursed", $"₹ {N(p.DisbursedSoFar)}");
+            Row("Release recommended now", r.RecommendedRelease > 0 ? $"₹ {N(r.RecommendedRelease)}" : "Nil", strong: true);
         });
     }
 

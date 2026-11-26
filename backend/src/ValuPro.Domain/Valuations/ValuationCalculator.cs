@@ -46,6 +46,23 @@ public sealed class Extra
     public decimal Amount { get; set; }
 }
 
+/// <summary>Stage inspections: how much of the estimated cost the work done represents, and what the bank can release now.</summary>
+public sealed class ProgressInput
+{
+    /// <summary>Total cost of construction as per the estimate the loan was sanctioned on.</summary>
+    public decimal EstimatedCost { get; set; }
+    public decimal CompletionPercent { get; set; }
+    /// <summary>Completion at the previous visit, for the comparison.</summary>
+    public decimal? PreviousPercent { get; set; }
+    /// <summary>The share of the cost the bank finances (the rest is the borrower's margin).</summary>
+    public decimal FinancePercent { get; set; } = 80;
+    public decimal DisbursedSoFar { get; set; }
+    /// <summary>Optional cap: the sanctioned loan amount.</summary>
+    public decimal? SanctionedLoan { get; set; }
+}
+
+public sealed record ProgressResult(decimal ValueOfWorkDone, decimal EligibleAmount, decimal RecommendedRelease, decimal? ProgressSincePrevious);
+
 /// <summary>Everything the valuer decides. Stored as JSON with the valuation; the result is always recalculated from it.</summary>
 public sealed class ValuationInput
 {
@@ -83,6 +100,9 @@ public sealed class ValuationInput
     public decimal? MeasuredAreaSqFt { get; set; }
 
     public string? Remarks { get; set; }
+
+    /// <summary>Stage inspections and re-inspections only.</summary>
+    public ProgressInput? Progress { get; set; }
 }
 
 public sealed record Line(string Label, string? Working, decimal Amount);
@@ -104,7 +124,8 @@ public sealed record ValuationResult(
     decimal RatePerSqFt,
     string FairMarketValueInWords,
     IReadOnlyList<Line> Working,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    ProgressResult? Progress = null);
 
 public static class ValuationCalculator
 {
@@ -180,10 +201,33 @@ public static class ValuationCalculator
             warnings.Add($"Measured area ({N(measured)} sq.ft) differs from the documents ({N(docs)} sq.ft) by {N(Math.Round(Math.Abs(measured - docs) / docs * 100, 1))}%.");
         if (i.Method == ValuationMethod.LandAndBuilding && i.Building.Any(b => b.AreaSqFt > 0 && b.RatePerSqFt <= 0))
             warnings.Add("A building line has no construction rate.");
-        if (fmv <= 0) warnings.Add("No value yet: enter the area and rate.");
+        var progress = i.Progress is { } p ? Progress(p, warnings) : null;
+        if (fmv <= 0 && progress is null) warnings.Add("No value yet: enter the area and rate.");
 
         return new ValuationResult(land, replacement, depreciation, building, composite, adjust, extras, market, fmv, realizable, distress,
-            guideline, insurance, ratePerSqFt, fmv > 0 ? IndianNumber.ToWords(fmv) : "", lines, warnings);
+            guideline, insurance, ratePerSqFt, fmv > 0 ? IndianNumber.ToWords(fmv) : "", lines, warnings, progress);
+    }
+
+    /// <summary>
+    /// Value of work done = estimated cost × completion. The bank can lend its finance share of that (capped at the
+    /// sanctioned loan); the recommended release is what is left after earlier disbursements, rounded to ₹1,000.
+    /// </summary>
+    public static ProgressResult Progress(ProgressInput p, List<string>? warnings = null)
+    {
+        var done = Math.Round(p.EstimatedCost * Math.Clamp(p.CompletionPercent, 0, 100) / 100, 0, MidpointRounding.AwayFromZero);
+        var eligible = Math.Round(done * Math.Clamp(p.FinancePercent, 0, 100) / 100, 0, MidpointRounding.AwayFromZero);
+        if (p.SanctionedLoan is > 0 and var cap) eligible = Math.Min(eligible, cap);
+        var release = Math.Max(0, Math.Round((eligible - p.DisbursedSoFar) / RoundTo, MidpointRounding.AwayFromZero) * RoundTo);
+        decimal? since = p.PreviousPercent is { } prev ? Math.Round(p.CompletionPercent - prev, 2) : null;
+
+        if (warnings is not null)
+        {
+            if (p.EstimatedCost <= 0) warnings.Add("Enter the estimated cost of construction to work out the release.");
+            if (since < 0) warnings.Add($"Completion ({N(p.CompletionPercent)}%) is lower than at the previous visit ({N(p.PreviousPercent!.Value)}%).");
+            if (p.DisbursedSoFar > eligible && eligible > 0)
+                warnings.Add($"₹{N(p.DisbursedSoFar)} has already been disbursed, more than the ₹{N(eligible)} the work done supports. No further release is recommended.");
+        }
+        return new ProgressResult(done, eligible, release, since);
     }
 
     public static string Basis(AreaBasis b) => b switch

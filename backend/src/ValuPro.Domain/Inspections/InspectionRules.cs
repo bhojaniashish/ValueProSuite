@@ -5,7 +5,7 @@ public sealed record MissingItem(string Section, string Message);
 
 public static class InspectionRules
 {
-    public static readonly string[] Sections = ["visit", "location", "boundaries", "occupancy", "building", "measurements", "approvals", "bank", "photos", "remarks"];
+    public static readonly string[] Sections = ["visit", "location", "boundaries", "occupancy", "construction", "building", "measurements", "approvals", "bank", "photos", "remarks"];
 
     /// <summary>A location further than this from the property's saved location is flagged for the reviewer.</summary>
     public const int FarFromPropertyMetres = 300;
@@ -18,7 +18,7 @@ public static class InspectionRules
     /// Required bank questions are those whose text is in <paramref name="requiredQuestions"/>.
     /// </summary>
     public static IReadOnlyList<MissingItem> Missing(
-        Inspection i, IReadOnlyCollection<PhotoTag> photos, bool landOnly, IReadOnlyCollection<string> requiredQuestions)
+        Inspection i, IReadOnlyCollection<PhotoTag> photos, bool landOnly, IReadOnlyCollection<string> requiredQuestions, bool construction = false)
     {
         var d = i.Data;
         var m = new List<MissingItem>();
@@ -48,7 +48,17 @@ public static class InspectionRules
         Need(Has(d.Occupancy.OccupiedBy), "occupancy", "Who occupies the property?");
         Need(d.Occupancy.OccupiedBy is not ("Tenant" or "PartlyRented") || Has(d.Occupancy.TenantName), "occupancy", "Enter the tenant's name.");
 
-        if (!landOnly)
+        if (construction)
+        {
+            // Stage visits: progress replaces the age / condition questions about a finished building.
+            var c = d.Construction;
+            Need(c.Stages.Count > 0, "construction", "Record the construction stages.");
+            Need(c.Stages.Count == 0 || Math.Abs(c.Stages.Sum(s => s.Weight) - 100) <= 0.5m, "construction", "Stage weights should add up to 100%.");
+            Need(Has(c.CurrentWork), "construction", "What work was going on at site?");
+            Need(c.AsPerPlan is not null, "construction", "Is the work as per the approved plan?");
+            Need(Has(d.Building.StructureType), "building", "Choose the structure type.");
+        }
+        else if (!landOnly)
         {
             Need(Has(d.Building.StructureType), "building", "Choose the structure type.");
             Need(d.Building.AgeYears is not null || d.Occupancy.OccupiedBy == "UnderConstruction", "building", "Enter the age of the building.");
@@ -58,7 +68,7 @@ public static class InspectionRules
 
         var a = d.Measurements;
         var measured = a.LandMeasured is > 0 || a.CarpetMeasured is > 0 || a.BuiltUpMeasured is > 0 || a.Floors.Any(f => f.Measured is > 0);
-        Need(measured, "measurements", landOnly ? "Enter the land area measured at site." : "Enter at least one area measured at site.");
+        Need(measured || construction, "measurements", landOnly ? "Enter the land area measured at site." : "Enter at least one area measured at site.");
 
         Need(Has(d.Approvals.PlanSeen), "approvals", "Was the approved plan seen?");
         Need(landOnly || Has(d.Approvals.Deviation), "approvals", "Any deviation from the approved plan?");

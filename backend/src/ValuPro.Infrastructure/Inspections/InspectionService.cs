@@ -96,17 +96,17 @@ public sealed class InspectionService(AppDbContext db, ICurrentUser me, TimeProv
         var inspection = await db.Set<Inspection>().AsNoTracking().FirstOrDefaultAsync(i => i.AssignmentId == assignmentId, ct);
         var photos = await PhotosAsync(assignmentId, ct);
         var structureTypes = await db.Set<DepreciationRule>().OrderBy(r => r.StructureType).Select(r => r.StructureType).ToListAsync(ct);
-        return Detail(row, inspection, photos, structureTypes);
+        return Detail(row, inspection, photos, structureTypes, await PreviousAsync(row.A, ct));
     }
 
-    private InspectionDetail Detail(CaseRow row, Inspection? i, IReadOnlyList<PhotoItem> photos, IReadOnlyList<string> structureTypes)
+    private InspectionDetail Detail(CaseRow row, Inspection? i, IReadOnlyList<PhotoItem> photos, IReadOnlyList<string> structureTypes, (PreviousProgress Info, InspectionData? Data)? previous)
     {
         var a = row.A;
         var p = row.Property;
         var landOnly = IsLandOnly(p);
         var questions = row.Bank.Questions.Select(q => new BankQuestionItem(q.Text, q.AnswerType, q.Options, q.Required)).ToList();
         var readOnly = ReadOnlyReason(a);
-        var data = i?.Data ?? Prefill(row);
+        var data = i?.Data ?? Prefill(row, previous?.Data);
         var shell = i ?? new Inspection { AssignmentId = a.Id, StartedByName = "", Data = data };
 
         return new InspectionDetail(
@@ -133,15 +133,48 @@ public sealed class InspectionService(AppDbContext db, ICurrentUser me, TimeProv
             questions,
             structureTypes,
             landOnly,
-            Missing(shell, photos, landOnly, row.Bank),
+            Missing(shell, photos, landOnly, row.Bank, IsConstruction(a)),
             readOnly is null,
-            readOnly);
+            readOnly,
+            a.CaseType,
+            previous?.Info);
     }
 
     /// <summary>A new inspection starts with what the office already knows: areas from the property record and the bank's questions.</summary>
-    private static InspectionData Prefill(CaseRow row)
+    private static bool IsConstruction(Assignment a) => a.CaseType is CaseType.StageInspection or CaseType.Reinspection;
+
+    /// <summary>The earlier case a stage visit follows, with its inspection (for the stage table and the comparison).</summary>
+    private async Task<(PreviousProgress Info, InspectionData? Data)?> PreviousAsync(Assignment a, CancellationToken ct)
+    {
+        if (a.PreviousAssignmentId is not { } prevId) return null;
+        var prev = await db.Set<Assignment>().IgnoreQueryFilters([AppDbContext.SoftDeleteFilter]).AsNoTracking()
+            .Where(x => x.Id == prevId).Select(x => new { x.Id, x.Number }).FirstOrDefaultAsync(ct);
+        if (prev is null) return null;
+        var pi = await db.Set<Inspection>().AsNoTracking().FirstOrDefaultAsync(x => x.AssignmentId == prevId, ct);
+        decimal? percent = pi is null ? null
+            : pi.Data.Construction.Stages.Count > 0 ? pi.Data.Construction.OverallPercent()
+            : pi.Data.Building.CompletionPercent;
+        DateOnly? on = pi is null ? null : DateOnly.FromDateTime((pi.SubmittedAt ?? pi.StartedAt).ToOffset(TimeSpan.FromHours(5.5)).DateTime);
+        return (new PreviousProgress(prev.Id, prev.Number, percent, on), pi?.Data);
+    }
+
+    private static InspectionData Prefill(CaseRow row, InspectionData? previous)
     {
         var d = new InspectionData();
+        if (IsConstruction(row.A))
+        {
+            // Start from the last visit's table (work only goes forward), else the usual split.
+            d.Construction.Stages = previous?.Construction.Stages is { Count: > 0 } stages
+                ? stages.Select(s => new ConstructionStage { Name = s.Name, Weight = s.Weight, DonePercent = s.DonePercent }).ToList()
+                : ConstructionSection.Defaults();
+            d.Occupancy.OccupiedBy = "UnderConstruction";
+            if (previous is not null)
+            {
+                d.Building.StructureType = previous.Building.StructureType;
+                d.Boundaries = previous.Boundaries;
+                d.Location = previous.Location;
+            }
+        }
         if (row.Property is { } p)
         {
             d.Measurements.LandAsPerDocuments = p.LandArea;
@@ -161,8 +194,8 @@ public sealed class InspectionService(AppDbContext db, ICurrentUser me, TimeProv
 
     private static bool IsLandOnly(Property? p) => p?.Type is PropertyType.OpenPlot or PropertyType.AgriculturalLand;
 
-    private static IReadOnlyList<MissingItem> Missing(Inspection i, IReadOnlyList<PhotoItem> photos, bool landOnly, Bank bank) =>
-        InspectionRules.Missing(i, photos.Select(p => p.Tag).ToHashSet(), landOnly, bank.Questions.Where(q => q.Required).Select(q => q.Text).ToList());
+    private static IReadOnlyList<MissingItem> Missing(Inspection i, IReadOnlyList<PhotoItem> photos, bool landOnly, Bank bank, bool construction) =>
+        InspectionRules.Missing(i, photos.Select(p => p.Tag).ToHashSet(), landOnly, bank.Questions.Where(q => q.Required).Select(q => q.Text).ToList(), construction);
 
     // ---------------- rules ----------------
 
@@ -238,7 +271,7 @@ public sealed class InspectionService(AppDbContext db, ICurrentUser me, TimeProv
         }
 
         var photos = await PhotosAsync(assignmentId, ct);
-        return new SaveInspectionResult(i.Version, Missing(i, photos, IsLandOnly(row.Property), row.Bank),
+        return new SaveInspectionResult(i.Version, Missing(i, photos, IsLandOnly(row.Property), row.Bank, IsConstruction(row.A)),
             i.DistanceFromPropertyMetres, i.DistanceFromPropertyMetres > InspectionRules.FarFromPropertyMetres, now);
     }
 
@@ -253,7 +286,7 @@ public sealed class InspectionService(AppDbContext db, ICurrentUser me, TimeProv
         if (i.Version != r.Version) return Error.Conflict("This inspection was changed on another device. Reload to see the latest copy.");
 
         var photos = await PhotosAsync(assignmentId, ct);
-        var missing = Missing(i, photos, IsLandOnly(row.Property), row.Bank);
+        var missing = Missing(i, photos, IsLandOnly(row.Property), row.Bank, IsConstruction(row.A));
         if (missing.Count > 0)
             return Error.Validation($"{missing.Count} item{(missing.Count == 1 ? " is" : "s are")} still needed: {missing[0].Message}");
 
@@ -329,6 +362,10 @@ public sealed class InspectionService(AppDbContext db, ICurrentUser me, TimeProv
                 .Select(kv => new BankAnswer { Question = kv.Key, Answer = kv.Value }))
             .ToList();
         d.Remarks.Text = T(d.Remarks.Text);
+        d.Construction.Stages = d.Construction.Stages.Where(x => !string.IsNullOrWhiteSpace(x.Name) || x.Weight > 0)
+            .Select(x => new ConstructionStage { Name = T(x.Name) ?? "Stage", Weight = x.Weight, DonePercent = Math.Clamp(x.DonePercent, 0, 100) }).ToList();
+        d.Construction.CurrentWork = T(d.Construction.CurrentWork);
+        d.Construction.Note = T(d.Construction.Note);
         return d;
     }
 

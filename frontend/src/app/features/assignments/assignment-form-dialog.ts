@@ -1,13 +1,14 @@
-import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, OnInit, output, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { toProblem } from '../../core/api/problem';
 import { Dialog } from '../../core/ui/dialog';
+import { Choice } from '../../shared/chips';
 import { Typeahead, TypeaheadOption } from '../../shared/typeahead';
 import { clientType } from '../clients/clients.api';
 import { PropertiesApi, propertyType } from '../properties/properties.api';
-import { AssignmentDetail, AssignmentsApi, Lookups, Priority, PRIORITIES, PURPOSES, SaveAssignment } from './assignments.api';
+import { AssignmentDetail, AssignmentListItem, AssignmentsApi, CASE_TYPES, CaseType, Lookups, Priority, PRIORITIES, PURPOSES, SaveAssignment, shortDate, statusMeta } from './assignments.api';
 
 /** Today in India as yyyy-mm-dd (due dates are the firm's calendar days). */
 export function todayIso(offsetDays = 0): string {
@@ -17,7 +18,7 @@ export function todayIso(offsetDays = 0): string {
 
 @Component({
   selector: 'vp-assignment-form-dialog',
-  imports: [Dialog, ReactiveFormsModule, Typeahead],
+  imports: [Dialog, ReactiveFormsModule, Typeahead, Choice],
   template: `
     <vp-dialog [title]="detail() ? 'Edit Assignment' : 'New Assignment'"
       [subtitle]="detail() ? detail()!.assignment.number : 'Create a valuation assignment'" icon="fa-clipboard-list" (closed)="closed.emit()">
@@ -66,6 +67,14 @@ export function todayIso(offsetDays = 0): string {
             <datalist id="purposes">@for (p of purposes; track p) { <option [value]="p"></option> }</datalist>
           </div>
 
+          <div class="fld col-2">
+            <span class="lbl">Case type</span>
+            <vp-choice label="Case type" [options]="caseTypes" [value]="v().caseType" (valueChange)="setCaseType($event)" />
+            @if (v().caseType !== 'Valuation') {
+              <span class="hint">A visit during construction: stage-wise progress and the amount the bank can release.</span>
+            }
+          </div>
+
           <div class="fld col-2" [class.invalid]="bad('applicantName')">
             <label for="applicant">Applicant <span class="req">*</span></label>
             <vp-typeahead inputId="applicant" placeholder="Type a name, mobile or client code"
@@ -82,6 +91,24 @@ export function todayIso(offsetDays = 0): string {
             @if (bad('propertySummary')) { <span class="err">{{ server()['propertySummary'] ?? 'Describe or pick the property.' }}</span> }
             @else { <span class="hint">{{ propertyId() ? 'Linked to the property register.' : 'e.g. "Residential Flat, Vesu, Surat" — or pick one from Properties.' }}</span> }
           </div>
+
+          @if (v().caseType !== 'Valuation') {
+            <div class="fld col-2" [class.invalid]="!!server()['previousAssignmentId']">
+              <label for="aprev">Follows the earlier case</label>
+              @if (!propertyId()) {
+                <span class="hint">Pick the property from the register above to choose its earlier case (original valuation or last stage visit).</span>
+              } @else {
+                <select id="aprev" formControlName="previousAssignmentId">
+                  <option value="">None (first visit)</option>
+                  @for (e of earlier(); track e.id) {
+                    <option [value]="e.id">{{ e.number }} · {{ caseLabel(e) }} · {{ statusMeta(e.status).label }} · {{ shortDate(e.createdAt) }}</option>
+                  }
+                </select>
+                @if (server()['previousAssignmentId']) { <span class="err">{{ server()['previousAssignmentId'] }}</span> }
+                @else { <span class="hint">Its stage table and disbursements are carried forward.</span> }
+              }
+            </div>
+          }
 
           <div class="fld" [class.invalid]="bad('valuerId')">
             <label for="avaluer">Assigned Valuer <span class="req">*</span></label>
@@ -166,6 +193,21 @@ export class AssignmentFormDialog implements OnInit {
     dueDate: [todayIso(7), Validators.required],
     fee: [0, [Validators.min(0)]],
     remarks: ['', Validators.maxLength(1000)],
+    caseType: ['Valuation' as CaseType],
+    previousAssignmentId: [''],
+  });
+
+  protected readonly caseTypes = CASE_TYPES.map((c) => ({ value: c.value, label: c.label }));
+  protected readonly statusMeta = statusMeta;
+  protected readonly shortDate = shortDate;
+  /** Earlier cases on the chosen property, to link a stage visit / re-inspection to. */
+  protected readonly earlier = signal<AssignmentListItem[]>([]);
+  private earlierFor: string | null = null;
+  /** Picking another property reloads its earlier cases (stage visits only). */
+  private readonly watchProperty = effect(() => {
+    const pid = this.propertyId();
+    if (pid && this.v().caseType !== 'Valuation') void this.loadEarlier();
+    if (!pid) this.earlier.set([]);
   });
 
   protected readonly v = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() }) as () => ReturnType<typeof this.form.getRawValue>;
@@ -200,12 +242,14 @@ export class AssignmentFormDialog implements OnInit {
       this.form.setValue({
         priority: a.priority, bankId: a.bankId, branchId: '', bankReference: d.bankReference ?? '', purpose: d.purpose ?? '',
         valuerId: a.valuerId, reviewerId: d.reviewerId ?? '', dueDate: a.dueDate, fee: a.fee, remarks: d.remarks ?? '',
+        caseType: a.caseType ?? 'Valuation', previousAssignmentId: d.previousAssignmentId ?? '',
       });
       this.form.controls.branchId.setValue(a.branchId ?? '');
       this.applicantText.set(a.applicantName);
       this.clientId.set(a.clientId);
       this.propertyText.set(a.propertySummary);
       this.propertyId.set(a.propertyId);
+      if (a.caseType && a.caseType !== 'Valuation') void this.loadEarlier();
     } else {
       const l = this.lookups()!;
       if (l.banks.length === 1) this.form.controls.bankId.setValue(l.banks[0].id);
@@ -220,6 +264,32 @@ export class AssignmentFormDialog implements OnInit {
           /* property not visible or removed: leave the fields empty */
         }
       }
+    }
+  }
+
+  protected setCaseType(t: string | null): void {
+    this.form.controls.caseType.setValue((t ?? 'Valuation') as CaseType);
+    if (t && t !== 'Valuation') void this.loadEarlier();
+    else this.form.controls.previousAssignmentId.setValue('');
+  }
+
+  protected caseLabel(a: AssignmentListItem): string {
+    return CASE_TYPES.find((c) => c.value === a.caseType)?.short ?? 'Valuation';
+  }
+
+  private async loadEarlier(): Promise<void> {
+    const pid = this.propertyId();
+    if (!pid || pid === this.earlierFor) return;
+    this.earlierFor = pid;
+    try {
+      const page = await firstValueFrom(this.api.list({ propertyId: pid, sort: 'created', desc: true, page: 1, pageSize: 20 }));
+      const self = this.detail()?.assignment.id;
+      this.earlier.set(page.items.filter((a) => a.id !== self));
+      // A new stage visit usually follows the latest case on the property.
+      if (!this.detail() && !this.form.controls.previousAssignmentId.value && this.earlier().length)
+        this.form.controls.previousAssignmentId.setValue(this.earlier()[0].id);
+    } catch {
+      this.earlier.set([]);
     }
   }
 
@@ -258,6 +328,8 @@ export class AssignmentFormDialog implements OnInit {
       siteVisitAt: null,
       fee: Number(v.fee) || 0,
       remarks: blank(v.remarks),
+      caseType: v.caseType,
+      previousAssignmentId: v.caseType === 'Valuation' ? null : v.previousAssignmentId || null,
     };
     this.busy.set(true);
     this.error.set(null);

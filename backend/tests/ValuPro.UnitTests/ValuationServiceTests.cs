@@ -182,6 +182,44 @@ public class ValuationServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_stage_visit_carries_cost_and_disbursements_from_the_previous_visit()
+    {
+        var first = await CaseAsync(_flat, data: d =>
+        {
+            d.Construction.Stages = ConstructionSection.Defaults();
+            d.Construction.Stages.Take(2).ToList().ForEach(s => s.DonePercent = 100); // 15%
+        });
+        Db.Add(new Valuation
+        {
+            AssignmentId = first, ValuedByName = "S",
+            Input = new ValuationInput { Progress = new ProgressInput { EstimatedCost = 60_00_000, CompletionPercent = 15, FinancePercent = 80, DisbursedSoFar = 2_00_000 } },
+        });
+        await Db.SaveChangesAsync();
+
+        var second = await CaseAsync(_flat, data: d =>
+        {
+            d.Construction.Stages = ConstructionSection.Defaults();
+            d.Construction.Stages.Take(3).ToList().ForEach(s => s.DonePercent = 100); // 45%
+        });
+        var a = await Db.Set<Assignment>().SingleAsync(x => x.Id == second);
+        a.CaseType = CaseType.StageInspection;
+        a.PreviousAssignmentId = first;
+        await Db.SaveChangesAsync();
+
+        var v = (await Svc.GetAsync(second)).Value!;
+        var p = v.Input.Progress!;
+        Assert.Equal(45, p.CompletionPercent);
+        Assert.Equal(15, p.PreviousPercent);
+        Assert.Equal(60_00_000, p.EstimatedCost);
+        Assert.Equal(7_20_000, p.DisbursedSoFar); // 2,00,000 earlier + 5,20,000 released at the previous visit (15% × 60L × 80% − 2L)
+        Assert.Equal(14_40_000, v.Result.Progress!.RecommendedRelease); // 45% × 60L × 80% = 21,60,000 − 7,20,000
+        Assert.Equal(CaseType.StageInspection, v.Case.CaseType);
+
+        var saved = await Svc.SaveAsync(second, new SaveValuationRequest(0, v.Input));
+        Assert.True(saved.IsSuccess); // no market value needed for a stage visit
+    }
+
+    [Fact]
     public async Task The_list_shows_cases_waiting_for_a_valuation_then_valued()
     {
         var waiting = await CaseAsync(_flat, data: d => d.Measurements.CarpetMeasured = 1000);
