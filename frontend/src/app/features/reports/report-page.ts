@@ -11,12 +11,13 @@ import { Choice } from '../../shared/chips';
 import { statusMeta } from '../assignments/assignments.api';
 import { saveBlob } from '../photos/photos.api';
 import { inr } from '../valuations/valuations.api';
+import { ReportEmailDialog } from './report-email-dialog';
 import { CHECK_LINKS, ReportCheck, ReportDetail, ReportFileItem, ReportsApi, SaveReport } from './reports.api';
 
 /** Prepare a case's report: check it's ready, adjust the wording, generate drafts, and approve the signed final. */
 @Component({
   selector: 'vp-report-page',
-  imports: [FormsModule, RouterLink, Dialog, Choice],
+  imports: [FormsModule, RouterLink, Dialog, Choice, ReportEmailDialog],
   templateUrl: './report-page.html',
   styleUrl: './report-page.scss',
 })
@@ -38,6 +39,7 @@ export class ReportPage implements OnInit {
   protected readonly dirty = signal(false);
   protected readonly busy = signal<'save' | 'draft' | 'approve' | null>(null);
   protected readonly confirmApprove = signal(false);
+  protected readonly emailing = signal(false);
   protected readonly previewFor = signal<string | null>(null);
   protected readonly previewUrl = signal<SafeResourceUrl | null>(null);
   protected readonly previewLoading = signal(false);
@@ -160,6 +162,13 @@ export class ReportPage implements OnInit {
     } catch (e) {
       this.toast.error('Could not download', toProblem(e).message);
     }
+  }
+
+  protected emailed(d: ReportDetail): void {
+    this.emailing.set(false);
+    this.apply(d);
+    const last = d.emails[0];
+    this.toast.ok('Report emailed', last ? `To ${last.to}` : d.number);
   }
 
   protected size(bytes: number): string {

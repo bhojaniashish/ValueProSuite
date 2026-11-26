@@ -5,6 +5,7 @@ using QuestPDF.Helpers;
 using ValuPro.Application.Abstractions;
 using ValuPro.Application.Common;
 using ValuPro.Application.Reports;
+using ValuPro.Application.Settings;
 using ValuPro.Application.Signatures;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Banks;
@@ -32,7 +33,7 @@ public class ReportServiceTests : IAsyncLifetime
         public string? Name { get; set; } = "Neha Joshi";
         public HashSet<string> Grants { get; set; } = [.. Permissions.All];
         public bool IsAuthenticated => true;
-        public string? Email => null;
+        public string? Email { get; set; } = "neha@om.in";
         public bool HasPermission(string permission) => Grants.Contains(permission);
     }
 
@@ -52,6 +53,21 @@ public class ReportServiceTests : IAsyncLifetime
         public Task DeleteAsync(string blobPath, CancellationToken ct = default) => Task.CompletedTask;
     }
 
+    private sealed class Outbox : IEmailSender
+    {
+        public readonly List<EmailMessage> Sent = [];
+        public bool Ready { get; set; } = true;
+        public string? Fail { get; set; }
+        public Task<bool> IsReadyAsync(CancellationToken ct = default) => Task.FromResult(Ready);
+        public Task SendAsync(EmailMessage message, CancellationToken ct = default)
+        {
+            if (Fail is not null) throw new InvalidOperationException(Fail);
+            Sent.Add(message);
+            return Task.CompletedTask;
+        }
+    }
+
+    private readonly Outbox _outbox = new();
     private readonly Me _me = new();
     private readonly MemoryFiles _files = new();
     private readonly FixedTenant _tenant = new();
@@ -72,6 +88,7 @@ public class ReportServiceTests : IAsyncLifetime
         services.AddSingleton<ITenantContext>(_tenant);
         services.AddSingleton<ICurrentUser>(_me);
         services.AddSingleton<IFileStorage>(_files);
+        services.AddSingleton<IEmailSender>(_outbox);
         services.AddScoped<AuditingInterceptor>();
         services.AddDbContext<AppDbContext>((sp, o) => o.UseInMemoryDatabase(name).AddInterceptors(sp.GetRequiredService<AuditingInterceptor>()));
         services.AddIdentityCore<AppUser>().AddRoles<AppRole>().AddEntityFrameworkStores<AppDbContext>();
@@ -220,5 +237,94 @@ public class ReportServiceTests : IAsyncLifetime
         Assert.Equal(AssignmentStatus.Submitted, await StatusAsync(id));
         Assert.False(done.CanEdit);
         Assert.Equal(ErrorKind.Forbidden, (await Svc.SaveAsync(id, new SaveReportRequest(null, null, "late", null, null, 4))).Error!.Kind);
+    }
+
+    private async Task<Guid> SignedCaseAsync()
+    {
+        var id = await CaseAsync(AssignmentStatus.QualityReview);
+        var branch = new BankBranch { BankId = _bank, Name = "Vesu", Email = "vesu.branch@hdfc.example", ContactPerson = "Mr. Shah" };
+        Db.Add(branch);
+        var a = await Db.Set<Assignment>().SingleAsync(x => x.Id == id);
+        a.BranchId = branch.Id;
+        a.BankReference = "HL-77";
+        await Db.SaveChangesAsync();
+        await GiveValuerASignatureAsync();
+        Assert.True((await Svc.ApproveAsync(id)).IsSuccess);
+        return id;
+    }
+
+    [Fact]
+    public async Task Only_a_signed_report_can_be_emailed()
+    {
+        var id = await CaseAsync(AssignmentStatus.DraftPrepared);
+        var d = (await Svc.GetAsync(id)).Value!;
+        Assert.False(d.CanEmail);
+        Assert.Contains("approve & sign", d.EmailBlockedReason);
+        Assert.Equal(ErrorKind.Forbidden, (await Svc.EmailDraftAsync(id)).Error!.Kind);
+
+        var signed = await SignedCaseAsync();
+        _outbox.Ready = false;
+        Assert.Contains("Email is not set up", (await Svc.GetAsync(signed)).Value!.EmailBlockedReason);
+        _outbox.Ready = true;
+        _me.Grants.Remove(Permissions.Reports.Manage);
+        Assert.False((await Svc.GetAsync(signed)).Value!.CanEmail);
+    }
+
+    [Fact]
+    public async Task Emailing_sends_the_signed_pdf_to_the_branch_and_logs_it()
+    {
+        var id = await SignedCaseAsync();
+        var draft = (await Svc.EmailDraftAsync(id)).Value!;
+        Assert.Equal(["vesu.branch@hdfc.example"], draft.To);
+        Assert.Equal(["neha@om.in"], draft.Cc);
+        Assert.Contains("Valuation report", draft.Subject);
+        Assert.Contains("HL-77", draft.Subject);
+        Assert.StartsWith("Dear Mr. Shah,", draft.Message);
+        Assert.Contains("Fair market value: ₹84,78,000", draft.Message);
+        Assert.False(draft.SentBefore);
+
+        var done = (await Svc.EmailAsync(id, new SendReportEmailRequest(draft.FileId, draft.To, [.. draft.Cc, "VESU.branch@hdfc.example"], draft.Subject, "Dear Sir,\n\nReport attached <b>.\nThanks"))).Value!;
+        var m = Assert.Single(_outbox.Sent);
+        Assert.Equal("neha@om.in", m.ReplyTo);
+        Assert.Equal(["neha@om.in"], m.Cc); // the To address is not copied again
+        var pdf = Assert.Single(m.Attachments!);
+        Assert.Equal("application/pdf", pdf.ContentType);
+        Assert.EndsWith("-valuation-report-v1.pdf", pdf.FileName);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf.Content, 0, 4));
+        Assert.Contains("<p>Report attached &lt;b&gt;.<br>Thanks</p>", m.HtmlBody);
+
+        var log = Assert.Single(done.Emails!);
+        Assert.Equal(EmailStatus.Sent, log.Status);
+        Assert.Equal("vesu.branch@hdfc.example", log.To);
+        var ev = await Db.Set<AssignmentEvent>().Where(e => e.AssignmentId == id).OrderByDescending(e => e.At).ThenByDescending(e => e.Id).FirstAsync();
+        Assert.Equal("Report emailed to the bank", ev.Title);
+        Assert.Equal(AssignmentStatus.Submitted, ev.ToStatus);
+        Assert.True((await Svc.EmailDraftAsync(id)).Value!.SentBefore);
+    }
+
+    [Fact]
+    public async Task A_failed_email_is_logged_and_reported()
+    {
+        var id = await SignedCaseAsync();
+        var draft = (await Svc.EmailDraftAsync(id)).Value!;
+        _outbox.Fail = "Mailbox unavailable";
+        var r = await Svc.EmailAsync(id, new SendReportEmailRequest(draft.FileId, draft.To, null, draft.Subject, draft.Message));
+        Assert.Contains("Mailbox unavailable", r.Error!.Message);
+        var log = Assert.Single((await Svc.GetAsync(id)).Value!.Emails!);
+        Assert.Equal(EmailStatus.Failed, log.Status);
+        Assert.False(await Db.Set<AssignmentEvent>().AnyAsync(e => e.AssignmentId == id && e.Title == "Report emailed to the bank"));
+
+        var draftFile = new SendReportEmailRequest(Guid.NewGuid(), draft.To, null, "s", "m");
+        Assert.Equal("fileId", (await Svc.EmailAsync(id, draftFile)).Error!.Field);
+    }
+
+    [Fact]
+    public void The_email_request_is_validated()
+    {
+        var v = new SendReportEmailRequestValidator();
+        Assert.False(v.Validate(new SendReportEmailRequest(Guid.NewGuid(), [], null, "s", "m")).IsValid);
+        Assert.False(v.Validate(new SendReportEmailRequest(Guid.NewGuid(), ["not-an-email"], null, "s", "m")).IsValid);
+        Assert.False(v.Validate(new SendReportEmailRequest(Guid.NewGuid(), ["a@b.in"], ["bad"], "s", "m")).IsValid);
+        Assert.True(v.Validate(new SendReportEmailRequest(Guid.NewGuid(), ["a@b.in"], ["c@d.in"], "s", "m")).IsValid);
     }
 }

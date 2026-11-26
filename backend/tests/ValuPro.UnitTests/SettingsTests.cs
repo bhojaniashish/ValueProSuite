@@ -44,7 +44,8 @@ public class SettingsTests
 
     private sealed class FailingEmail : IEmailSender
     {
-        public Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default) =>
+        public Task<bool> IsReadyAsync(CancellationToken ct = default) => Task.FromResult(true);
+        public Task SendAsync(EmailMessage message, CancellationToken ct = default) =>
             throw new InvalidOperationException("Connection refused");
     }
 

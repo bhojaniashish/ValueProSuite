@@ -43,6 +43,28 @@ public class ReportFile : TenantEntity
     public string? ApprovedByName { get; set; }
 }
 
+public enum EmailStatus
+{
+    Sent = 0,
+    Failed = 1,
+}
+
+/// <summary>A report emailed to the bank (or a failed attempt), kept as the record of what went where.</summary>
+public class ReportEmail : TenantEntity
+{
+    public Guid AssignmentId { get; set; }
+    public Guid ReportFileId { get; set; }
+    public int ReportNumber { get; set; }
+    /// <summary>Comma-separated addresses.</summary>
+    public required string To { get; set; }
+    public string? Cc { get; set; }
+    public required string Subject { get; set; }
+    public Guid? SentByUserId { get; set; }
+    public required string SentByName { get; set; }
+    public EmailStatus Status { get; set; }
+    public string? Error { get; set; }
+}
+
 public static class ReportText
 {
     public static string DefaultDeclaration(string inspectedOn) =>

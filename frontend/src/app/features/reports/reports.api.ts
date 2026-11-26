@@ -23,7 +23,18 @@ export interface ReportDetail {
   canEdit: boolean; canGenerate: boolean; generateBlockedReason: string | null; canApprove: boolean; approveBlockedReason: string | null;
   readOnlyReason: string | null;
   caseType: 'Valuation' | 'StageInspection' | 'Reinspection'; recommendedRelease: number | null;
+  emails: ReportEmailItem[]; canEmail: boolean; emailBlockedReason: string | null;
 }
+
+export interface ReportEmailItem {
+  id: string; at: string; to: string; cc: string | null; subject: string; reportNumber: number; sentByName: string;
+  status: 'Sent' | 'Failed'; error: string | null;
+}
+export interface ReportEmailDraft {
+  fileId: string; reportNumber: number; fileName: string; sizeBytes: number; to: string[]; cc: string[]; subject: string; message: string;
+  replyTo: string | null; bankName: string; branchName: string | null; sentBefore: boolean;
+}
+export interface SendReportEmail { fileId: string; to: string[]; cc: string[]; subject: string; message: string }
 export interface ReportListItem {
   assignmentId: string; number: string; status: AssignmentStatus; bankShortCode: string; bankColor: string; applicantName: string;
   propertySummary: string; valuerName: string; reviewerName: string | null; dueDate: string; fairMarketValue: number | null;
@@ -61,6 +72,12 @@ export class ReportsApi {
   }
   approve(id: string): Observable<ReportDetail> {
     return this.http.post<ReportDetail>(`${this.base}/${id}/approve`, {});
+  }
+  emailDraft(id: string): Observable<ReportEmailDraft> {
+    return this.http.get<ReportEmailDraft>(`${this.base}/${id}/email`);
+  }
+  email(id: string, body: SendReportEmail): Observable<ReportDetail> {
+    return this.http.post<ReportDetail>(`${this.base}/${id}/email`, body);
   }
   pdf(fileId: string): Observable<Blob> {
     return this.http.get(`${this.base}/files/${fileId}`, { responseType: 'blob' });

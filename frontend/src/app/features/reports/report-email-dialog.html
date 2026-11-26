@@ -1,0 +1,71 @@
+<vp-dialog title="Email the report to the bank" [subtitle]="number()" icon="fa-paper-plane" (closed)="closed.emit()">
+  @if (draft(); as d) {
+    <div class="body">
+      @if (d.sentBefore) {
+        <div class="alert-inline warn"><i class="fa-solid fa-circle-info"></i> This report has been emailed before. Sending again is fine for a resend or a new recipient.</div>
+      }
+
+      <div class="fld" [class.invalid]="!!fieldErrors()['to'] || invalidText(toText)">
+        <label for="mto">To <span class="req">*</span></label>
+        <div class="addr" (click)="toInput.focus()">
+          @for (a of to(); track a; let i = $index) {
+            <span class="chip">{{ a }}<button type="button" [attr.aria-label]="'Remove ' + a" (click)="remove('to', i); $event.stopPropagation()"><i class="fa-solid fa-xmark"></i></button></span>
+          }
+          <input #toInput id="mto" type="email" autocomplete="off" [(ngModel)]="toText" (keydown)="key($event, 'to')" (blur)="take('to')"
+            [placeholder]="to().length ? '' : 'branch@bank.in'" />
+        </div>
+        @if (fieldErrors()['to']) { <span class="err">{{ fieldErrors()['to'] }}</span> }
+        @else if (invalidText(toText)) { <span class="err">Not a valid email address.</span> }
+        @else if (!to().length) { <span class="hint">{{ d.branchName ? 'No email saved for ' + branch(d.branchName) + '.' : 'No branch on this case.' }} Type the bank's address.</span> }
+        @else { <span class="hint">{{ d.bankName }}{{ d.branchName ? ', ' + branch(d.branchName) : '' }}. Enter or comma adds another.</span> }
+      </div>
+
+      <div class="fld" [class.invalid]="!!fieldErrors()['cc'] || invalidText(ccText)">
+        <label for="mcc">Copy to</label>
+        <div class="addr" (click)="ccInput.focus()">
+          @for (a of cc(); track a; let i = $index) {
+            <span class="chip">{{ a }}<button type="button" [attr.aria-label]="'Remove ' + a" (click)="remove('cc', i); $event.stopPropagation()"><i class="fa-solid fa-xmark"></i></button></span>
+          }
+          <input #ccInput id="mcc" type="email" autocomplete="off" [(ngModel)]="ccText" (keydown)="key($event, 'cc')" (blur)="take('cc')" />
+        </div>
+        @if (fieldErrors()['cc']) { <span class="err">{{ fieldErrors()['cc'] }}</span> }
+        @else if (invalidText(ccText)) { <span class="err">Not a valid email address.</span> }
+        @else if (d.replyTo) { <span class="hint">Replies come to {{ d.replyTo }}.</span> }
+      </div>
+
+      <div class="fld" [class.invalid]="!!fieldErrors()['subject']">
+        <label for="msub">Subject <span class="req">*</span></label>
+        <input id="msub" [(ngModel)]="subject" maxlength="200" />
+        @if (fieldErrors()['subject']) { <span class="err">{{ fieldErrors()['subject'] }}</span> }
+      </div>
+
+      <div class="fld" [class.invalid]="!!fieldErrors()['message']">
+        <label for="mmsg">Message <span class="req">*</span></label>
+        <textarea id="mmsg" rows="11" [(ngModel)]="message" maxlength="4000"></textarea>
+        @if (fieldErrors()['message']) { <span class="err">{{ fieldErrors()['message'] }}</span> }
+      </div>
+
+      <div class="attach">
+        <i class="fa-solid fa-file-pdf"></i>
+        <div>
+          <b class="small">{{ d.fileName }}</b>
+          <span class="small muted block">Signed report v{{ d.reportNumber }} · {{ size(d.sizeBytes) }}</span>
+        </div>
+        @if (fieldErrors()['fileId']) { <span class="err">{{ fieldErrors()['fileId'] }}</span> }
+      </div>
+
+      @if (error()) { <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ error() }}</div> }
+    </div>
+  } @else if (loadError()) {
+    <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ loadError() }}</div>
+  } @else {
+    <p class="muted"><i class="fa-solid fa-spinner fa-spin"></i> Preparing the email…</p>
+  }
+
+  <ng-container footer>
+    <button class="btn btn-ghost" type="button" (click)="closed.emit()">Cancel</button>
+    <button class="btn btn-pri" type="button" [disabled]="!draft() || !canSend()" (click)="send()">
+      <i class="fa-solid" [class]="busy() ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i> {{ busy() ? 'Sending…' : 'Send' }}
+    </button>
+  </ng-container>
+</vp-dialog>

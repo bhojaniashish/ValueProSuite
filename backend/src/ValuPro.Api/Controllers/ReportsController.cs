@@ -38,6 +38,22 @@ public sealed class ReportsController(IReportService reports) : ApiControllerBas
     [ProducesResponseType<ReportDetail>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Approve(Guid assignmentId, CancellationToken ct) => From(await reports.ApproveAsync(assignmentId, ct));
 
+    /// <summary>The email to send: latest signed report, the branch's address and standard wording.</summary>
+    [HttpGet("{assignmentId:guid}/email")]
+    [HasPermission(Permissions.Reports.Manage)]
+    [ProducesResponseType<ReportEmailDraft>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> EmailDraft(Guid assignmentId, CancellationToken ct) => From(await reports.EmailDraftAsync(assignmentId, ct));
+
+    /// <summary>Emails a signed report to the bank (PDF attached) and logs it on the case's timeline.</summary>
+    [HttpPost("{assignmentId:guid}/email")]
+    [HasPermission(Permissions.Reports.Manage)]
+    [ProducesResponseType<ReportDetail>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Email(Guid assignmentId, SendReportEmailRequest request, CancellationToken ct)
+    {
+        if (await ValidateAsync(request, ct) is { } invalid) return invalid;
+        return From(await reports.EmailAsync(assignmentId, request, ct));
+    }
+
     /// <summary>A generated PDF; shown in the browser unless ?download=true.</summary>
     [HttpGet("files/{fileId:guid}")]
     public async Task<IActionResult> Pdf(Guid fileId, [FromQuery] bool download, CancellationToken ct)

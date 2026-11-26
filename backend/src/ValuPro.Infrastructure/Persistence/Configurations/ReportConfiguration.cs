@@ -18,6 +18,23 @@ public sealed class CaseReportConfiguration : IEntityTypeConfiguration<CaseRepor
     }
 }
 
+public sealed class ReportEmailConfiguration : IEntityTypeConfiguration<ReportEmail>
+{
+    public void Configure(EntityTypeBuilder<ReportEmail> b)
+    {
+        b.ToTable("ReportEmails");
+        b.HasIndex(x => x.AssignmentId);
+        b.HasOne<Assignment>().WithMany().HasForeignKey(x => x.AssignmentId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<ReportFile>().WithMany().HasForeignKey(x => x.ReportFileId).OnDelete(DeleteBehavior.Restrict);
+        b.Property(x => x.To).HasMaxLength(1000).IsRequired();
+        b.Property(x => x.Cc).HasMaxLength(1000);
+        b.Property(x => x.Subject).HasMaxLength(200).IsRequired();
+        b.Property(x => x.SentByName).HasMaxLength(120).IsRequired();
+        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(10);
+        b.Property(x => x.Error).HasMaxLength(500);
+    }
+}
+
 public sealed class ReportFileConfiguration : IEntityTypeConfiguration<ReportFile>
 {
     public void Configure(EntityTypeBuilder<ReportFile> b)

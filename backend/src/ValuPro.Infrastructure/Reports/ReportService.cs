@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ValuPro.Application.Abstractions;
 using ValuPro.Application.Common;
 using ValuPro.Application.Reports;
+using ValuPro.Application.Settings;
 using ValuPro.Application.Signatures;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Banks;
@@ -16,13 +17,14 @@ using ValuPro.Infrastructure.Persistence;
 
 namespace ValuPro.Infrastructure.Reports;
 
-public sealed class ReportService(
+public sealed partial class ReportService(
     AppDbContext db,
     ICurrentUser me,
     ITenantContext tenant,
     IFileStorage files,
     ISignatureService signatures,
     IReportRenderer renderer,
+    IEmailSender email,
     TimeProvider clock) : IReportService
 {
     private static readonly TimeSpan India = TimeSpan.FromHours(5.5);
@@ -110,7 +112,7 @@ public sealed class ReportService(
     // ---------------- detail ----------------
 
     private sealed record Loaded(CaseRow Row, Inspection? Inspection, Valuation? Valuation, CaseReport? Report, List<CaseDocument> Documents,
-        List<AssignmentPhoto> ReportPhotos, List<ReportFile> Files, bool ValuerHasSignature);
+        List<AssignmentPhoto> ReportPhotos, List<ReportFile> Files, bool ValuerHasSignature, List<ReportEmail> Emails, bool EmailReady);
 
     private async Task<Loaded?> LoadAsync(Guid assignmentId, CancellationToken ct)
     {
@@ -126,7 +128,8 @@ public sealed class ReportService(
             .OrderBy(p => p.SortOrder).ThenBy(p => p.TakenAt).ToListAsync(ct);
         var reportFiles = await db.Set<ReportFile>().AsNoTracking().Where(f => f.AssignmentId == assignmentId).OrderByDescending(f => f.Number).ToListAsync(ct);
         var hasSignature = await db.Users.AnyAsync(u => u.Id == row.A.ValuerId && u.SignatureBlobPath != null, ct);
-        return new Loaded(row, inspection, valuation, report, docs, photos, reportFiles, hasSignature);
+        var emails = await db.Set<ReportEmail>().AsNoTracking().Where(e => e.AssignmentId == assignmentId).OrderByDescending(e => e.CreatedAt).ToListAsync(ct);
+        return new Loaded(row, inspection, valuation, report, docs, photos, reportFiles, hasSignature, emails, await email.IsReadyAsync(ct));
     }
 
     private static List<ReportCheck> Checks(Loaded l)
@@ -193,7 +196,9 @@ public sealed class ReportService(
             l.Row.ValuerName, l.Row.ReviewerName, l.Valuation?.FairMarketValue, checks, Fields(l),
             l.Files.Select(f => new ReportFileItem(f.Id, f.Number, f.Kind, f.SizeBytes, f.CreatedAt, f.GeneratedByName, f.FairMarketValue, f.SignedByName, f.ApprovedByName)).ToList(),
             readOnly is null, generateBlocked is null, generateBlocked, approveBlocked is null, approveBlocked, readOnly,
-            l.Row.A.CaseType, Construction(l.Row.A) && l.Valuation?.Input.Progress is { } pr ? ValuationCalculator.Progress(pr).RecommendedRelease : null);
+            l.Row.A.CaseType, Construction(l.Row.A) && l.Valuation?.Input.Progress is { } pr ? ValuationCalculator.Progress(pr).RecommendedRelease : null,
+            l.Emails.Select(e => new ReportEmailItem(e.Id, e.CreatedAt, e.To, e.Cc, e.Subject, e.ReportNumber, e.SentByName, e.Status, e.Error)).ToList(),
+            EmailBlockedReason(l) is null, EmailBlockedReason(l));
     }
 
     public async Task<Result<ReportDetail>> GetAsync(Guid assignmentId, CancellationToken ct = default) =>

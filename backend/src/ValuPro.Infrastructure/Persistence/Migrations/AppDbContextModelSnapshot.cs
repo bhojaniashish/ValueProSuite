@@ -1392,6 +1392,84 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                     b.ToTable("CaseReports", (string)null);
                 });
 
+            modelBuilder.Entity("ValuPro.Domain.Reports.ReportEmail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cc")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ReportFileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ReportNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SentByName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid?>("SentByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("To")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignmentId");
+
+                    b.HasIndex("ReportFileId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ReportEmails", (string)null);
+                });
+
             modelBuilder.Entity("ValuPro.Domain.Reports.ReportFile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2044,6 +2122,21 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                     b.HasOne("ValuPro.Domain.Assignments.Assignment", null)
                         .WithMany()
                         .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ValuPro.Domain.Reports.ReportEmail", b =>
+                {
+                    b.HasOne("ValuPro.Domain.Assignments.Assignment", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ValuPro.Domain.Reports.ReportFile", null)
+                        .WithMany()
+                        .HasForeignKey("ReportFileId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

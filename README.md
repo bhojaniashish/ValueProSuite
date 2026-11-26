@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 3 in progress** (Phases 0–2 done; Reports with the default template and stage inspections built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 3 in progress** (Phases 0–2 done; Reports with the default template, stage inspections and emailing to the bank built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -99,6 +99,12 @@ Other sidebar modules show which phase builds them.
   records who approved it, and moves the case to "Submitted". Users with Reports: Approve can only reach "Submitted" this way.
 - Report wording (dates, place, opinion, declaration, photos per page) can be edited until the report is submitted.
   Keeping the standard declaration stores nothing, so it follows the inspection date.
+- **Emailing to the bank:** once signed, "Email the report to the bank" sends the signed PDF as an attachment through the
+  firm's SMTP (Settings → Email & SMS). To is pre-filled from the branch's email (else the last recipients), a copy goes to
+  the sender, replies go to the sender, and the wording is editable. Every attempt is logged (sent or failed, shown under
+  "Sent to the bank"); a sent email also goes on the case timeline. Needs Reports: Manage; PDFs over 18 MB are refused.
+- In development `Email:PickupDirectory` (appsettings.Development.json → `App_Data/mail`) writes every email as an `.eml`
+  file instead of sending it, so nothing leaves the machine. Leave it unset in production.
 - Signatures are images for now (`SignatureMethod.Image`); Aadhaar eSign and DSC are planned as other methods.
 - **PDF library licence:** reports use QuestPDF under its Community licence, which is free only while the firm's annual
   gross revenue is under USD 1,000,000 (public-sector bodies and listed companies are not eligible). Buy a QuestPDF

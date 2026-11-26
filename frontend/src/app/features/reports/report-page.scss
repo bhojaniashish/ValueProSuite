@@ -161,3 +161,18 @@
   margin: 0;
   line-height: 1.55;
 }
+
+.mails {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  li { display: flex; align-items: flex-start; gap: 10px; }
+  li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .badge { flex: none; margin-top: 1px; }
+  b { word-break: break-all; }
+  .muted { word-break: break-all; }
+  .err { color: var(--danger); }
+}

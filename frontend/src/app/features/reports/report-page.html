@@ -111,9 +111,32 @@
           }
         }
         @if (final(); as fin) {
-          <button class="btn btn-pri wide" type="button" (click)="download(fin)"><i class="fa-solid fa-download"></i> Download signed report</button>
+          <button class="btn btn-pri wide" type="button" (click)="emailing.set(true)" [disabled]="!d.canEmail">
+            <i class="fa-solid fa-paper-plane"></i> {{ d.emails.length ? 'Email the report again' : 'Email the report to the bank' }}
+          </button>
+          @if (!d.canEmail && d.emailBlockedReason) { <span class="small block-why">{{ d.emailBlockedReason }}</span> }
+          <button class="btn btn-ghost wide" type="button" (click)="download(fin)"><i class="fa-solid fa-download"></i> Download signed report</button>
         }
       </section>
+
+      @if (d.emails.length) {
+        <section class="card sec">
+          <div class="sec-head"><h3>Sent to the bank</h3></div>
+          <ul class="mails">
+            @for (m of d.emails; track m.id) {
+              <li>
+                <span class="badge" [class]="m.status === 'Sent' ? 'b-ok' : 'b-danger'">{{ m.status === 'Sent' ? 'Sent' : 'Failed' }}</span>
+                <div>
+                  <b class="small">To {{ m.to }}</b>
+                  @if (m.cc) { <span class="small muted block">Copy: {{ m.cc }}</span> }
+                  <span class="small muted block">v{{ m.reportNumber }} · {{ when(m.at) }} · {{ m.sentByName }}</span>
+                  @if (m.error) { <span class="small err block">{{ m.error }}</span> }
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+      }
 
       @if (d.files.length) {
         <section class="card sec">
@@ -145,6 +168,10 @@
   }
 } @else {
   <div class="card empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading the report…</span></div>
+}
+
+@if (emailing() && d(); as cur) {
+  <vp-report-email-dialog [assignmentId]="cur.assignmentId" [number]="cur.number" (sent)="emailed($event)" (closed)="emailing.set(false)" />
 }
 
 @if (confirmApprove()) {

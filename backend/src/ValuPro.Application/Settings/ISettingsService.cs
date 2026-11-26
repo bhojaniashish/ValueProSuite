@@ -30,5 +30,19 @@ public interface ISettingsService
 /// <summary>Sends email with the firm's SMTP settings.</summary>
 public interface IEmailSender
 {
-    Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default);
+    /// <summary>True when email can go out (SMTP set up, or a development pickup folder).</summary>
+    Task<bool> IsReadyAsync(CancellationToken ct = default);
+    Task SendAsync(EmailMessage message, CancellationToken ct = default);
+    Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default) =>
+        SendAsync(new EmailMessage([to], [], subject, htmlBody), ct);
 }
+
+public sealed record EmailAttachment(string FileName, string ContentType, byte[] Content);
+
+public sealed record EmailMessage(
+    IReadOnlyList<string> To,
+    IReadOnlyList<string> Cc,
+    string Subject,
+    string HtmlBody,
+    string? ReplyTo = null,
+    IReadOnlyList<EmailAttachment>? Attachments = null);

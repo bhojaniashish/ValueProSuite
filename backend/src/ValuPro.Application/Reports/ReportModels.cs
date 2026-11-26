@@ -1,3 +1,4 @@
+using FluentValidation;
 using ValuPro.Application.Common;
 using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Documents;
@@ -32,7 +33,32 @@ public sealed record ReportDetail(
     string PropertySummary, string ValuerName, string? ReviewerName, decimal? FairMarketValue,
     IReadOnlyList<ReportCheck> Checks, ReportFields Fields, IReadOnlyList<ReportFileItem> Files,
     bool CanEdit, bool CanGenerate, string? GenerateBlockedReason, bool CanApprove, string? ApproveBlockedReason, string? ReadOnlyReason,
-    CaseType CaseType = CaseType.Valuation, decimal? RecommendedRelease = null);
+    CaseType CaseType = CaseType.Valuation, decimal? RecommendedRelease = null,
+    IReadOnlyList<ReportEmailItem>? Emails = null, bool CanEmail = false, string? EmailBlockedReason = null);
+
+/// <summary>One email of the report to the bank (sent or failed).</summary>
+public sealed record ReportEmailItem(Guid Id, DateTimeOffset At, string To, string? Cc, string Subject, int ReportNumber, string SentByName,
+    EmailStatus Status, string? Error);
+
+/// <summary>A ready-to-send email: the latest signed report, the branch's address and standard wording.</summary>
+public sealed record ReportEmailDraft(Guid FileId, int ReportNumber, string FileName, long SizeBytes, IReadOnlyList<string> To,
+    IReadOnlyList<string> Cc, string Subject, string Message, string? ReplyTo, string BankName, string? BranchName, bool SentBefore);
+
+public sealed record SendReportEmailRequest(Guid FileId, IReadOnlyList<string> To, IReadOnlyList<string>? Cc, string Subject, string Message);
+
+public sealed class SendReportEmailRequestValidator : AbstractValidator<SendReportEmailRequest>
+{
+    public SendReportEmailRequestValidator()
+    {
+        RuleFor(x => x.To).NotEmpty().WithMessage("Add at least one recipient.")
+            .Must(x => x.Count <= 10).WithMessage("At most 10 recipients.");
+        RuleForEach(x => x.To).NotEmpty().EmailAddress().WithMessage("'{PropertyValue}' is not a valid email address.").OverridePropertyName("to");
+        RuleFor(x => x.Cc).Must(x => x is null || x.Count <= 10).WithMessage("At most 10 copies.");
+        RuleForEach(x => x.Cc).NotEmpty().EmailAddress().WithMessage("'{PropertyValue}' is not a valid email address.").OverridePropertyName("cc");
+        RuleFor(x => x.Subject).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Message).NotEmpty().MaximumLength(4000);
+    }
+}
 
 public sealed record SaveReportRequest(DateOnly? ReportDate, DateOnly? ValuationDate, string? Opinion, string? Declaration, string? Place, int PhotosPerPage);
 
@@ -48,6 +74,10 @@ public interface IReportService
     /// <summary>Reviewer approves: generates the final PDF signed by the case's valuer and moves the case to "Submitted".</summary>
     Task<Result<ReportDetail>> ApproveAsync(Guid assignmentId, CancellationToken ct = default);
     Task<Result<ReportPdf>> OpenAsync(Guid fileId, CancellationToken ct = default);
+    /// <summary>The email to send: latest signed report, branch address, standard wording.</summary>
+    Task<Result<ReportEmailDraft>> EmailDraftAsync(Guid assignmentId, CancellationToken ct = default);
+    /// <summary>Emails a signed report to the bank and logs it on the case's timeline.</summary>
+    Task<Result<ReportDetail>> EmailAsync(Guid assignmentId, SendReportEmailRequest request, CancellationToken ct = default);
 }
 
 // ---------------- what the template prints ----------------
