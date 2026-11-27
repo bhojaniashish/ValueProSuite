@@ -40,6 +40,7 @@ export const Permission = {
   reportsManage: 'reports.manage',
   reportsApprove: 'reports.approve',
   billingView: 'billing.view',
+  billingManage: 'billing.manage',
   ratesView: 'rates.view',
   ratesManage: 'rates.manage',
   usersView: 'users.view',

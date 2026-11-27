@@ -96,6 +96,21 @@
         <div><dt>Due Date</dt><dd [class.late]="a().isOverdue">{{ date(a().dueDate) }}</dd></div>
         <div><dt>Site Visit</dt><dd>{{ d.siteVisitAt ? visitText(d.siteVisitAt) : '—' }}</dd></div>
         <div><dt>Fee</dt><dd class="tnum">{{ rupees(a().fee) }}</dd></div>
+        @if (canViewBilling() && (invoices().length || canCreateInvoice())) {
+          <div class="wide">
+            <dt>Invoice</dt>
+            <dd class="inv">
+              @for (i of invoices(); track i.id) {
+                <a [routerLink]="['/billing', i.id]">{{ i.number ?? 'Draft' }}</a>
+                <span class="badge" [class]="invoiceState[i.state].badge">{{ invoiceState[i.state].label }}</span>
+                <span class="small muted tnum">{{ money(i.total) }}</span>
+              }
+              @if (canCreateInvoice()) {
+                <button class="btn btn-soft btn-sm" type="button" [disabled]="billingBusy()" (click)="createInvoice()"><i class="fa-solid fa-file-invoice-dollar"></i> Create invoice</button>
+              }
+            </dd>
+          </div>
+        }
         <div class="wide">
           <dt>Property</dt>
           <dd>

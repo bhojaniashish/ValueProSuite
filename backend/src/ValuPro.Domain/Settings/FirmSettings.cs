@@ -39,6 +39,13 @@ public class FirmSettings : AuditableEntity, ITenantScoped
     public string? StateCode { get; set; }
     public string? PlaceOfSupply { get; set; }
     public string InvoicePrefix { get; set; } = "INV";
+    /// <summary>Service code printed on invoice lines (997222 = real estate appraisal on a fee basis).</summary>
+    public string SacCode { get; set; } = "997222";
+    public int PaymentDueDays { get; set; } = 30;
+    /// <summary>The firm's bank account / UPI for payment, printed on invoices.</summary>
+    public string? PaymentDetails { get; set; }
+    /// <summary>Terms printed at the foot of invoices.</summary>
+    public string? InvoiceTerms { get; set; }
     public string AssignmentPrefix { get; set; } = "VAL";
 
     public List<NotificationPreference> Notifications { get; set; } = NotificationEvents.Defaults();

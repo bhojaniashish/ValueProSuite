@@ -130,6 +130,8 @@ public static class DependencyInjection
         services.AddSingleton<Application.Reports.IReportRenderer, Reports.DefaultReportTemplate>();
         services.AddScoped<Application.Reports.IReportService, Reports.ReportService>();
         services.AddScoped<Application.Reports.IReportFormatService, Reports.ReportFormatService>();
+        services.AddSingleton<Application.Billing.IInvoiceRenderer, Billing.InvoiceTemplate>();
+        services.AddScoped<Application.Billing.IBillingService, Billing.BillingService>();
 
         return services;
     }

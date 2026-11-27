@@ -8,6 +8,7 @@ import { Dialog } from '../../core/ui/dialog';
 import { timeAgo } from '../../core/ui/format';
 import { ToastService } from '../../core/ui/toast';
 import { BankBadge } from '../banks/bank-badge';
+import { BillingApi, InvoiceListItem, money, STATE_META } from '../billing/billing.api';
 import { DocumentStrip } from '../documents/document-strip';
 import { PhotoStrip } from '../photos/photo-strip';
 import { AssignmentFormDialog } from './assignment-form-dialog';
@@ -45,6 +46,16 @@ export class AssignmentDetailPage implements OnInit {
   protected readonly canViewValuation = computed(() => this.auth.hasPermission(Permission.valuationView));
   protected readonly caseTypeLabel = caseTypeLabel;
   protected readonly canViewReport = computed(() => this.auth.hasPermission(Permission.reportsView));
+  protected readonly canViewBilling = computed(() => this.auth.hasPermission(Permission.billingView));
+  protected readonly canBill = computed(() => this.auth.hasPermission(Permission.billingManage));
+  private readonly billing = inject(BillingApi);
+  protected readonly invoices = signal<InvoiceListItem[]>([]);
+  protected readonly billingBusy = signal(false);
+  protected readonly money = money;
+  protected readonly invoiceState = STATE_META;
+  /** A submitted case with no live invoice can be billed from here. */
+  protected readonly canCreateInvoice = computed(() =>
+    this.canBill() && this.a().status === 'Submitted' && !this.invoices().some((i) => i.status !== 'Cancelled'));
 
   protected readonly a = computed(() => this.detail()!.assignment);
   protected readonly stageIndex = computed(() => STAGES.indexOf(this.a().status));
@@ -53,8 +64,30 @@ export class AssignmentDetailPage implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       this.detail.set(await firstValueFrom(this.api.get(this.id())));
+      void this.loadInvoices();
     } catch (e) {
       this.error.set(toProblem(e).status === 404 ? 'This assignment no longer exists.' : toProblem(e).message);
+    }
+  }
+
+  private async loadInvoices(): Promise<void> {
+    if (!this.canViewBilling()) return;
+    try {
+      this.invoices.set((await firstValueFrom(this.billing.list({ assignmentId: this.id(), pageSize: 10 }))).items);
+    } catch {
+      this.invoices.set([]);
+    }
+  }
+
+  protected async createInvoice(): Promise<void> {
+    this.billingBusy.set(true);
+    try {
+      const inv = await firstValueFrom(this.billing.create([this.id()]));
+      void this.router.navigate(['/billing', inv.id]);
+    } catch (e) {
+      this.toast.error('Could not create the invoice', toProblem(e).message);
+    } finally {
+      this.billingBusy.set(false);
     }
   }
 

@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 3 in progress** (Phases 0–2 done; Reports with the default template, stage inspections and emailing to the bank built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 4 in progress** (Phases 0–3 done; Billing built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -46,6 +46,9 @@ The inspection gets a "Construction progress" step (weighted stages of work, qui
 comparison with the last visit); the valuation works out value of work done, the bank's eligible share and the release
 recommended now (carrying cost, finance % and disbursements from the previous visit); the report prints as a
 STAGE INSPECTION / RE-INSPECTION REPORT with the stage table and a disbursement table. Market value is optional.
+**Billing** (Phase 4): GST tax invoices for submitted cases (one or several of a bank's cases per invoice), billed to the
+bank branch or the client, with CGST + SGST or IGST by state, SAC code, round-off and the amount in words; payments with
+TDS; outstanding, overdue, collected and unbilled figures for the financial year and by bank; invoice PDF.
 Other sidebar modules show which phase builds them.
 
 ## Site inspection rules
@@ -127,6 +130,21 @@ Other sidebar modules show which phase builds them.
   than the last visit, or more already paid than is eligible.
 - A new visit starts from the previous one: stage table, structure, boundaries, cost, finance %, sanctioned loan, and
   "already disbursed" = previous disbursed + previous release.
+
+## Billing rules
+
+- A draft invoice has no number and can be edited or deleted. Issuing gives it the next number for its financial year
+  (`{prefix}/26-27/0001`, April–March) and makes it final; corrections are made by cancelling (with a reason) and issuing
+  a new one. Cancelled invoices are kept and their numbers stay used.
+- One invoice covers one bank's cases. A case can be on only one issued invoice. Issuing moves submitted cases to
+  "Invoice Generated"; cancelling moves them back to "Submitted" (unless another issued invoice still bills them).
+- The recipient's name, address, GSTIN and state are copied onto the invoice (from the branch or the client, editable).
+  Same state as the firm (Settings → GST state code) = CGST + SGST half each; another state = IGST. GST is worked out to
+  the paisa and the total rounded to the rupee (round-off shown). Charging GST needs the firm's GSTIN.
+- Payments record the amount received and the TDS deducted (banks deduct 10% under 194J; the form offers it); both settle
+  the invoice. Payments can't exceed what is outstanding; an invoice with payments can't be cancelled until they are
+  removed. Unpaid past the due date = overdue.
+- Settings → GST also holds the SAC code (997222), payment due days, payment details and invoice terms printed on invoices.
 
 ## Assignment workflow rules
 

@@ -17,6 +17,7 @@ const BUILT: Record<string, Routes[number]['loadComponent']> = {
   documents: () => import('./features/documents/documents-page').then((m) => m.DocumentsPage),
   valuation: () => import('./features/valuations/valuations-page').then((m) => m.ValuationsPage),
   reports: () => import('./features/reports/reports-page').then((m) => m.ReportsPage),
+  billing: () => import('./features/billing/billing-page').then((m) => m.BillingPage),
 };
 
 const moduleRoutes: Routes = NAVIGATION.flatMap((g) => g.items)
@@ -109,6 +110,13 @@ export const routes: Routes = [
             canActivate: [permissionGuard],
             data: { permission: Permission.valuationView },
             loadComponent: () => import('./features/valuations/valuation-page').then((m) => m.ValuationPage),
+          },
+          {
+            path: 'billing/:id',
+            title: 'Invoice · ValuPro',
+            canActivate: [permissionGuard],
+            data: { permission: Permission.billingView },
+            loadComponent: () => import('./features/billing/invoice-page').then((m) => m.InvoicePage),
           },
           {
             path: 'settings/report-formats/:id',

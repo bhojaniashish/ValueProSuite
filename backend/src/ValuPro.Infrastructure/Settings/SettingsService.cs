@@ -168,6 +168,10 @@ public sealed class SettingsService(
         s.PlaceOfSupply = Clean(r.PlaceOfSupply);
         s.InvoicePrefix = r.InvoicePrefix.Trim().ToUpperInvariant();
         s.AssignmentPrefix = r.AssignmentPrefix.Trim().ToUpperInvariant();
+        s.SacCode = r.SacCode.Trim();
+        s.PaymentDueDays = r.PaymentDueDays;
+        s.PaymentDetails = Clean(r.PaymentDetails);
+        s.InvoiceTerms = Clean(r.InvoiceTerms);
         await db.SaveChangesAsync(ct);
         return Gst(s);
     }
@@ -225,7 +229,8 @@ public sealed class SettingsService(
             s.FromEmail, s.FromName, s.SmsProvider, s.SmsSenderId, s.SmsApiKeyEncrypted is not null);
 
     private static GstSettings Gst(FirmSettings s) =>
-        new(s.Gstin, s.DefaultGstRate, s.StateCode, s.PlaceOfSupply, s.InvoicePrefix, s.AssignmentPrefix);
+        new(s.Gstin, s.DefaultGstRate, s.StateCode, s.PlaceOfSupply, s.InvoicePrefix, s.AssignmentPrefix, s.SacCode, s.PaymentDueDays,
+            s.PaymentDetails, s.InvoiceTerms);
 
     private static IReadOnlyList<NotificationSetting> Notifications(FirmSettings s) =>
     [

@@ -48,6 +48,12 @@ export interface GstSettings {
   placeOfSupply: string | null;
   invoicePrefix: string;
   assignmentPrefix: string;
+  /** Service code on invoice lines (997222 = real estate appraisal). */
+  sacCode: string;
+  paymentDueDays: number;
+  /** Bank account / UPI printed on invoices. */
+  paymentDetails: string | null;
+  invoiceTerms: string | null;
 }
 
 export interface NotificationSetting {

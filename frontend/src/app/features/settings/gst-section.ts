@@ -64,6 +64,25 @@ export function financialYear(d = new Date()): string {
           <input id="asg" class="tnum upper" formControlName="assignmentPrefix" maxlength="10" />
           <span class="hint">Next assignment looks like <b class="tnum">{{ assignmentSample() }}</b></span>
         </div>
+        <div class="fld" [class.invalid]="bad('sacCode')">
+          <label for="sac">SAC code <span class="req">*</span></label>
+          <input id="sac" class="tnum" formControlName="sacCode" maxlength="8" />
+          @if (bad('sacCode')) { <span class="err">{{ err()['sacCode'] ?? '4–8 digits, e.g. 997222.' }}</span> }
+          @else { <span class="hint">997222 = real estate appraisal on a fee basis.</span> }
+        </div>
+        <div class="fld" [class.invalid]="bad('paymentDueDays')">
+          <label for="due">Payment due in</label>
+          <div class="fld-suf"><input id="due" type="number" min="0" max="180" formControlName="paymentDueDays" /><span>days</span></div>
+        </div>
+        <div class="fld col-2" [class.invalid]="bad('paymentDetails')">
+          <label for="pay">Payment details on invoices</label>
+          <textarea id="pay" rows="3" formControlName="paymentDetails" maxlength="500"
+            placeholder="e.g. HDFC Bank, A/c 50200012345678, IFSC HDFC0001234&#10;UPI: firm@hdfcbank"></textarea>
+        </div>
+        <div class="fld col-2" [class.invalid]="bad('invoiceTerms')">
+          <label for="terms">Invoice terms</label>
+          <textarea id="terms" rows="2" formControlName="invoiceTerms" maxlength="1000" placeholder="e.g. Please share TDS certificates (Form 16A) every quarter."></textarea>
+        </div>
       </div>
       @if (canEdit()) {
         <div class="section-foot">
@@ -97,6 +116,10 @@ export class GstSection {
     placeOfSupply: [''],
     invoicePrefix: ['INV', [Validators.required, Validators.pattern(/^[A-Za-z0-9-]{1,10}$/)]],
     assignmentPrefix: ['VAL', [Validators.required, Validators.pattern(/^[A-Za-z0-9-]{1,10}$/)]],
+    sacCode: ['997222', [Validators.required, Validators.pattern(/^[0-9]{4,8}$/)]],
+    paymentDueDays: [30, [Validators.required, Validators.min(0), Validators.max(180)]],
+    paymentDetails: ['', Validators.maxLength(500)],
+    invoiceTerms: ['', Validators.maxLength(1000)],
   });
 
   private readonly v = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
@@ -146,6 +169,10 @@ export class GstSection {
       placeOfSupply: v.placeOfSupply || null,
       invoicePrefix: v.invoicePrefix.trim().toUpperCase(),
       assignmentPrefix: v.assignmentPrefix.trim().toUpperCase(),
+      sacCode: v.sacCode.trim(),
+      paymentDueDays: Number(v.paymentDueDays),
+      paymentDetails: v.paymentDetails.trim() || null,
+      invoiceTerms: v.invoiceTerms.trim() || null,
     };
     this.busy.set(true);
     try {
@@ -168,6 +195,10 @@ export class GstSection {
       placeOfSupply: g.placeOfSupply ?? '',
       invoicePrefix: g.invoicePrefix,
       assignmentPrefix: g.assignmentPrefix,
+      sacCode: g.sacCode ?? '997222',
+      paymentDueDays: g.paymentDueDays ?? 30,
+      paymentDetails: g.paymentDetails ?? '',
+      invoiceTerms: g.invoiceTerms ?? '',
     });
   }
 }

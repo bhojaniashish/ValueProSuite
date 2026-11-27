@@ -163,6 +163,13 @@ dl {
   .wide {
     grid-column: 1 / -1;
   }
+  .inv {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    a { font-weight: 600; }
+  }
 }
 
 dt {

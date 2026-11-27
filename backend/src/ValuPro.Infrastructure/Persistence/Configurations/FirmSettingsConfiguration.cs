@@ -25,6 +25,9 @@ public sealed class FirmSettingsConfiguration : IEntityTypeConfiguration<FirmSet
         b.Property(x => x.DefaultGstRate).HasPrecision(5, 2);
         b.Property(x => x.StateCode).HasMaxLength(2);
         b.Property(x => x.PlaceOfSupply).HasMaxLength(60);
+        b.Property(x => x.SacCode).HasMaxLength(8).HasDefaultValue("997222");
+        b.Property(x => x.PaymentDetails).HasMaxLength(500);
+        b.Property(x => x.InvoiceTerms).HasMaxLength(1000);
         b.Property(x => x.InvoicePrefix).HasMaxLength(10);
         b.Property(x => x.AssignmentPrefix).HasMaxLength(10);
 

@@ -1,0 +1,180 @@
+<div class="page-head">
+  <div>
+    <h2>Billing &amp; Invoicing</h2>
+    <p>GST invoices for submitted cases, payments received (with TDS), and what is still owed.</p>
+  </div>
+  @if (canManage() && summary()?.unbilledCount) {
+    <button class="btn btn-pri" type="button" (click)="setTab('unbilled')"><i class="fa-solid fa-file-invoice-dollar"></i> Bill cases</button>
+  }
+</div>
+
+@if (summary(); as s) {
+  <div class="stats">
+    <div class="card stat">
+      <span class="ic b-warn"><i class="fa-solid fa-hourglass-half"></i></span>
+      <div><b class="tnum">{{ short(s.outstanding) }}</b><span>Outstanding</span></div>
+    </div>
+    <button class="card stat link-stat" type="button" (click)="setTab('invoices'); setFilter('overdue')">
+      <span class="ic b-danger"><i class="fa-solid fa-triangle-exclamation"></i></span>
+      <div><b class="tnum">{{ short(s.overdue) }}</b><span>Overdue · {{ s.overdueCount }} invoice{{ s.overdueCount === 1 ? '' : 's' }}</span></div>
+    </button>
+    <div class="card stat">
+      <span class="ic b-ok"><i class="fa-solid fa-circle-check"></i></span>
+      <div><b class="tnum">{{ short(s.collected) }}</b><span>Collected FY {{ s.financialYear }}@if (s.tds) { · TDS {{ short(s.tds) }} }</span></div>
+    </div>
+    <button class="card stat link-stat" type="button" (click)="setTab('unbilled')">
+      <span class="ic b-brand"><i class="fa-solid fa-file-circle-plus"></i></span>
+      <div><b class="tnum">{{ s.unbilledCount }}</b><span>To bill · {{ short(s.unbilledFees) }} in fees</span></div>
+    </button>
+  </div>
+
+  <div class="insight">
+    <section class="card chart">
+      <div class="card-head"><h3>This financial year</h3><span class="sub">Invoiced {{ short(s.invoiced) }}</span></div>
+      @if (s.months.length) {
+        <div class="bars" role="img" [attr.aria-label]="'Invoiced and collected by month, FY ' + s.financialYear">
+          @for (m of s.months; track m.month) {
+            <div class="mon" [title]="m.month + ': invoiced ' + money(m.invoiced) + ', collected ' + money(m.collected)">
+              <div class="pair">
+                <span class="bar inv" [style.height.%]="barHeight(m.invoiced)"></span>
+                <span class="bar col" [style.height.%]="barHeight(m.collected)"></span>
+              </div>
+              <span class="small muted">{{ m.month }}</span>
+            </div>
+          }
+        </div>
+        <div class="legend small muted"><span><i class="dot inv"></i> Invoiced</span><span><i class="dot col"></i> Collected (incl. TDS)</span></div>
+      }
+    </section>
+    <section class="card banks">
+      <div class="card-head"><h3>Owed by bank</h3></div>
+      @if (s.byBank.length) {
+        <ul>
+          @for (b of s.byBank; track b.bankId) {
+            <li>
+              <button type="button" (click)="setBank(b.bankId)">
+                @if (b.shortCode) { <span class="bank" [style.background]="b.color">{{ b.shortCode }}</span> }
+                <span class="nm">{{ b.name }}<span class="small muted block">{{ b.invoices }} invoice{{ b.invoices === 1 ? '' : 's' }}@if (b.overdue) { · <span class="od">{{ short(b.overdue) }} overdue</span> }</span></span>
+                <b class="tnum">{{ short(b.outstanding) }}</b>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="small muted none">Nothing outstanding.</p>
+      }
+    </section>
+  </div>
+}
+
+<div class="card list-card">
+  <vp-tabs [tabs]="tabs()" [value]="tab()" (valueChange)="setTab($any($event))" />
+
+  @if (tab() === 'invoices') {
+    <div class="toolbar">
+      <div class="search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" placeholder="Search invoice no., bill-to, case number" aria-label="Search invoices" (input)="onSearch($any($event.target).value)" />
+      </div>
+      <div class="chips" role="group" aria-label="Filter invoices">
+        @for (f of filters; track f.value) {
+          <button type="button" class="chip" [class.on]="filter() === f.value" (click)="setFilter(f.value)">{{ f.label }}</button>
+        }
+      </div>
+      @if (bankId()) {
+        <button type="button" class="chip on" [attr.aria-label]="'Show all banks'" (click)="setBank(null)">{{ bankName() }} <i class="fa-solid fa-xmark"></i></button>
+      }
+      @if (loading()) { <i class="fa-solid fa-spinner fa-spin muted"></i> }
+    </div>
+
+    @if (error()) {
+      <div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><b>Could not load invoices</b><span>{{ error() }}</span>
+        <button class="btn btn-soft btn-sm" type="button" (click)="load()">Try again</button></div>
+    } @else if (!items().length && !loading()) {
+      <div class="empty">
+        <i class="fa-solid fa-file-invoice"></i>
+        <b>No invoices here</b>
+        <span>Submitted cases wait under "To bill"; an invoice is made from there or from the case.</span>
+      </div>
+    } @else {
+      <div class="list">
+        @for (i of items(); track i.id) {
+          <a class="row" [routerLink]="['/billing', i.id]">
+            <div class="main">
+              <div class="l1">
+                @if (i.bankShortCode) { <span class="bank" [style.background]="i.bankColor">{{ i.bankShortCode }}</span> }
+                <span class="num">{{ i.number ?? 'Draft' }}</span>
+                <span class="badge" [class]="stateMeta[i.state].badge">{{ stateMeta[i.state].label }}</span>
+              </div>
+              <b>{{ i.billToName }}</b>
+              <span class="small muted">{{ day(i.invoiceDate) }}@if (i.cases.length) { · {{ i.cases.join(', ') }} }</span>
+            </div>
+            <div class="val">
+              <b class="tnum">{{ money(i.total) }}</b>
+              <span class="small" [class.muted]="!i.outstanding" [class.warn]="i.state === 'Overdue'">
+                @if (i.status !== 'Issued') { incl. GST {{ money(i.gst) }} }
+                @else if (i.outstanding) { {{ money(i.outstanding) }} due {{ day(i.dueDate) }} }
+                @else { Settled }
+              </span>
+            </div>
+          </a>
+        }
+      </div>
+      <vp-pager [page]="page()" [pages]="pages()" [range]="range()" (goTo)="goTo($event)" />
+    }
+  } @else {
+    @if (unbilled(); as list) {
+      @if (!list.length) {
+        <div class="empty">
+          <i class="fa-solid fa-circle-check"></i>
+          <b>Nothing waiting to be billed</b>
+          <span>Cases show here once their report is approved and submitted.</span>
+        </div>
+      } @else {
+        <p class="small muted intro">Submitted cases without an issued invoice. Tick one bank's cases to bill them together, or bill a case on its own.</p>
+        @for (g of groups(); track g.bankId) {
+          <div class="group">
+            <div class="ghead">
+              <span class="bank" [style.background]="g.color">{{ g.code }}</span>
+              <b>{{ g.cases.length }} case{{ g.cases.length === 1 ? '' : 's' }}</b>
+              @if (canManage() && g.cases.length > 1) { <button class="link small" type="button" (click)="pickAll(g.bankId)">Select all</button> }
+            </div>
+            @for (c of g.cases; track c.assignmentId) {
+              <div class="urow" [class.on]="picked().has(c.assignmentId)">
+                @if (canManage()) {
+                  <input type="checkbox" [attr.aria-label]="'Bill ' + c.number" [checked]="picked().has(c.assignmentId)" [disabled]="!!c.draftInvoiceId" (change)="toggle(c)" />
+                }
+                <div class="main">
+                  <div class="l1">
+                    <a class="num" [routerLink]="['/assignments', c.assignmentId]">{{ c.number }}</a>
+                    @if (c.branchName) { <span class="small muted">{{ c.branchName }}</span> }
+                    @if (c.draftInvoiceId) { <a class="badge b-gray" [routerLink]="['/billing', c.draftInvoiceId]">In a draft</a> }
+                  </div>
+                  <b>{{ c.applicantName }}</b>
+                  <span class="small muted">{{ c.propertySummary }}</span>
+                </div>
+                <div class="val">
+                  <b class="tnum">{{ c.fee ? money(c.fee) : 'No fee set' }}</b>
+                  @if (canManage() && !c.draftInvoiceId) {
+                    <button class="btn btn-ghost btn-sm" type="button" [disabled]="creating()" (click)="createInvoice([c.assignmentId])">Bill this</button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+        @if (picked().size) {
+          <div class="billbar">
+            <span><b>{{ picked().size }}</b> case{{ picked().size === 1 ? '' : 's' }} · fees {{ money(pickedTotal()) }} + GST</span>
+            <button class="btn btn-ghost btn-sm" type="button" (click)="clearPicked()">Clear</button>
+            <button class="btn btn-pri" type="button" [disabled]="creating()" (click)="createInvoice(selectedIds())">
+              <i class="fa-solid" [class]="creating() ? 'fa-spinner fa-spin' : 'fa-file-invoice-dollar'"></i> Create invoice
+            </button>
+          </div>
+        }
+      }
+    } @else {
+      <div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading…</span></div>
+    }
+  }
+</div>

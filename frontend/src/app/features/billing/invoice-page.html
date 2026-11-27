@@ -1,0 +1,302 @@
+@if (error()) {
+  <div class="card empty">
+    <i class="fa-solid fa-triangle-exclamation"></i><b>Could not open the invoice</b><span>{{ error() }}</span>
+    <a class="btn btn-soft btn-sm" routerLink="/billing">Back to billing</a>
+  </div>
+} @else if (d(); as d) {
+  <div class="head card">
+    <a class="back" routerLink="/billing" aria-label="Back to billing"><i class="fa-solid fa-arrow-left"></i></a>
+    <div class="who">
+      <div class="l1">
+        <b>{{ d.number ?? 'Draft invoice' }}</b>
+        <span class="badge" [class]="stateMeta[d.state].badge">{{ stateMeta[d.state].label }}</span>
+        @if (dirty()) { <span class="small unsaved">Not saved</span> }
+      </div>
+      <span class="small muted">{{ d.billToName }}@if (d.bankName && d.bankName !== d.billToName) { · {{ d.bankName }} cases } · {{ day(d.invoiceDate) }}</span>
+    </div>
+    <div class="amt">
+      <span class="small muted">{{ d.status === 'Issued' && d.outstanding ? 'Due ' + day(d.dueDate) : 'Total' }}</span>
+      <b class="tnum">{{ money(d.status === 'Issued' && d.outstanding ? d.outstanding : (d.status === 'Draft' ? live()?.total : d.total)) }}</b>
+    </div>
+  </div>
+
+  @if (d.status === 'Cancelled') {
+    <div class="alert-inline danger"><i class="fa-solid fa-ban"></i> Cancelled {{ d.cancelledAt ? day(d.cancelledAt.slice(0, 10)) : '' }} by {{ d.cancelledByName }}: {{ d.cancelReason }}</div>
+  }
+
+  <div class="layout">
+    <div class="left">
+      @if (d.status === 'Draft' && d.canEdit) {
+        <!-- Draft editor -->
+        <section class="card sec">
+          <div class="sec-head"><h3>Bill to</h3></div>
+          <div class="body">
+            @if (d.billToOptions.length > 1) {
+              <div class="opts" role="group" aria-label="Who the invoice is for">
+                @for (o of d.billToOptions; track o.label) {
+                  <button type="button" class="opt" [class.on]="isOption(o)" (click)="useOption(o)">
+                    <i class="fa-solid" [class]="o.billTo === 'Bank' ? 'fa-building-columns' : 'fa-user'"></i> {{ o.label }}
+                  </button>
+                }
+              </div>
+            }
+            <div class="grid">
+              <div class="fld col-2" [class.invalid]="!!err('billToName')">
+                <label for="bname">Name <span class="req">*</span></label>
+                <input id="bname" [(ngModel)]="f.billToName" (ngModelChange)="changed()" maxlength="200" />
+                @if (err('billToName')) { <span class="err">{{ err('billToName') }}</span> }
+              </div>
+              <div class="fld col-2">
+                <label for="baddr">Address</label>
+                <input id="baddr" [(ngModel)]="f.billToAddress" (ngModelChange)="changed()" maxlength="400" />
+              </div>
+              <div class="fld" [class.invalid]="!!err('billToGstin')">
+                <label for="bgst">GSTIN</label>
+                <input id="bgst" class="upper tnum" [(ngModel)]="f.billToGstin" (change)="gstinChanged()" maxlength="15" placeholder="If registered" />
+                @if (err('billToGstin')) { <span class="err">{{ err('billToGstin') }}</span> }
+              </div>
+              <div class="fld" [class.invalid]="!!err('billToStateCode')">
+                <label for="bstate">State (place of supply)</label>
+                <select id="bstate" [(ngModel)]="f.billToStateCode" (ngModelChange)="changed()">
+                  <option [ngValue]="null">Same as the firm</option>
+                  @for (s of states; track s.code) { <option [ngValue]="s.code">{{ s.code }} · {{ s.name }}</option> }
+                </select>
+                @if (err('billToStateCode')) { <span class="err">{{ err('billToStateCode') }}</span> }
+                @else { <span class="hint">{{ live()?.inter ? 'Other state: IGST' : 'Same state: CGST + SGST' }}</span> }
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card sec">
+          <div class="sec-head"><h3>Invoice</h3></div>
+          <div class="body grid three">
+            <div class="fld">
+              <label for="idate">Invoice date</label>
+              <input id="idate" type="date" [(ngModel)]="f.invoiceDate" (ngModelChange)="changed()" />
+            </div>
+            <div class="fld" [class.invalid]="!!err('dueDate')">
+              <label for="ddate">Due by</label>
+              <input id="ddate" type="date" [(ngModel)]="f.dueDate" (ngModelChange)="changed()" [min]="f.invoiceDate" />
+              @if (err('dueDate')) { <span class="err">{{ err('dueDate') }}</span> }
+            </div>
+            <div class="fld">
+              <label for="rate">GST rate</label>
+              <select id="rate" [(ngModel)]="f.gstRate" (ngModelChange)="changed()">
+                @for (r of rates; track r) { <option [ngValue]="r">{{ r ? r + '%' : 'Exempt (0%)' }}</option> }
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="card sec">
+          <div class="sec-head"><h3>Lines</h3></div>
+          <div class="body">
+            <div class="lines">
+              @for (l of f.lines; track $index; let i = $index) {
+                <div class="line">
+                  <div class="fld desc">
+                    <label [for]="'ld' + i">{{ caseNumber(l.assignmentId) ?? 'Description' }}</label>
+                    <textarea [id]="'ld' + i" rows="2" [(ngModel)]="l.description" (ngModelChange)="changed()" maxlength="300"></textarea>
+                  </div>
+                  <div class="fld sac">
+                    <label [for]="'ls' + i">SAC</label>
+                    <input [id]="'ls' + i" class="tnum" [(ngModel)]="l.sac" (ngModelChange)="changed()" maxlength="10" />
+                  </div>
+                  <div class="fld amt">
+                    <label [for]="'la' + i">Amount</label>
+                    <div class="fld-pre"><span>₹</span><input [id]="'la' + i" vpAmount [decimals]="2" [(ngModel)]="l.amount" (ngModelChange)="changed()" /></div>
+                  </div>
+                  <button class="btn-icon danger rm" type="button" [attr.aria-label]="'Remove line ' + (i + 1)" [disabled]="f.lines.length === 1" (click)="removeLine(i)"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+              }
+            </div>
+            @if (err('lines')) { <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ err('lines') }}</div> }
+            <button class="btn btn-ghost btn-sm" type="button" (click)="addLine()"><i class="fa-solid fa-plus"></i> Add a line (travel, extra visit…)</button>
+            <div class="fld">
+              <label for="notes">Note on the invoice</label>
+              <input id="notes" [(ngModel)]="f.notes" (ngModelChange)="changed()" maxlength="1000" placeholder="Optional" />
+            </div>
+          </div>
+        </section>
+      } @else {
+        <!-- Issued / cancelled (or read-only draft) -->
+        <section class="card sec">
+          <div class="sec-head"><h3>Details</h3></div>
+          <dl class="kv body">
+            <div><dt>Bill to</dt><dd>{{ d.billToName }}@if (d.billToAddress) { <span class="small muted block">{{ d.billToAddress }}</span> }</dd></div>
+            <div><dt>GSTIN</dt><dd class="tnum">{{ d.billToGstin ?? '—' }}</dd></div>
+            <div><dt>Place of supply</dt><dd>{{ d.placeOfSupply ?? '—' }}</dd></div>
+            <div><dt>Invoice date / due</dt><dd>{{ day(d.invoiceDate) }} / {{ day(d.dueDate) }}</dd></div>
+            @if (d.issuedAt) { <div><dt>Issued by</dt><dd>{{ d.issuedByName }}</dd></div> }
+          </dl>
+          <ul class="ro-lines">
+            @for (l of d.lines; track $index) {
+              <li>
+                <span>@if (l.assignmentId) { <a class="num" [routerLink]="['/assignments', l.assignmentId]">{{ l.assignmentNumber }}</a> } {{ l.description }}</span>
+                <b class="tnum">{{ money(l.amount) }}</b>
+              </li>
+            }
+          </ul>
+        </section>
+
+        @if (d.status === 'Issued') {
+          <section class="card sec">
+            <div class="sec-head">
+              <h3>Payments</h3>
+              @if (canManage() && d.outstanding > 0 && !showPay()) {
+                <button class="btn btn-soft btn-sm ml" type="button" (click)="openPay()"><i class="fa-solid fa-plus"></i> Record payment</button>
+              }
+            </div>
+            <div class="body">
+              @if (showPay()) {
+                <div class="payform">
+                  <div class="grid">
+                    <div class="fld">
+                      <label for="pdate">Received on</label>
+                      <input id="pdate" type="date" [(ngModel)]="pay.receivedOn" />
+                    </div>
+                    <div class="fld">
+                      <label for="pmode">Mode</label>
+                      <select id="pmode" [(ngModel)]="pay.mode">@for (m of modes; track m.value) { <option [value]="m.value">{{ m.label }}</option> }</select>
+                    </div>
+                    <div class="fld">
+                      <label for="pamt">Amount received</label>
+                      <div class="fld-pre"><span>₹</span><input id="pamt" vpAmount [decimals]="2" [(ngModel)]="pay.amount" /></div>
+                    </div>
+                    <div class="fld">
+                      <label for="ptds">TDS deducted</label>
+                      <div class="fld-pre"><span>₹</span><input id="ptds" vpAmount [decimals]="2" [(ngModel)]="pay.tds" /></div>
+                      <button class="link small" type="button" (click)="tds10()">10% TDS on {{ money(d.taxable) }} (194J)</button>
+                    </div>
+                    <div class="fld col-2">
+                      <label for="pref">Reference</label>
+                      <input id="pref" [(ngModel)]="pay.reference" maxlength="100" placeholder="UTR, UPI ref or cheque no." />
+                    </div>
+                  </div>
+                  @if (payError()) { <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ payError() }}</div> }
+                  <div class="acts">
+                    <button class="btn btn-ghost" type="button" (click)="showPay.set(false)">Cancel</button>
+                    <button class="btn btn-pri" type="button" [disabled]="busy() !== null" (click)="addPayment()">
+                      <i class="fa-solid" [class]="busy() === 'pay' ? 'fa-spinner fa-spin' : 'fa-check'"></i> Save payment
+                    </button>
+                  </div>
+                </div>
+              }
+              @if (d.payments.length) {
+                <ul class="pays">
+                  @for (p of d.payments; track p.id) {
+                    <li>
+                      <div>
+                        <b class="tnum">{{ money(p.amount) }}</b>@if (p.tds) { <span class="small muted"> + TDS {{ money(p.tds) }}</span> }
+                        <span class="small muted block">{{ day(p.receivedOn) }} · {{ modeLabel(p.mode) }}@if (p.reference) { · {{ p.reference }} } · {{ p.recordedByName }}</span>
+                      </div>
+                      @if (canManage()) {
+                        <button class="btn-icon danger" type="button" [attr.aria-label]="'Remove payment of ' + money(p.amount)" (click)="removePayment(p.id)"><i class="fa-solid fa-trash"></i></button>
+                      }
+                    </li>
+                  }
+                </ul>
+              } @else if (!showPay()) {
+                <p class="small muted none">No payments yet.</p>
+              }
+            </div>
+          </section>
+        }
+      }
+
+      <!-- Totals -->
+      <section class="card sec">
+        <dl class="totals body">
+          @if (d.status === 'Draft' && live(); as t) {
+            <div><dt>Taxable value</dt><dd class="tnum">{{ money(t.taxable) }}</dd></div>
+            @if (t.inter) { <div><dt>IGST {{ f.gstRate }}%</dt><dd class="tnum">{{ money(t.igst) }}</dd></div> }
+            @else { <div><dt>CGST {{ f.gstRate / 2 }}%</dt><dd class="tnum">{{ money(t.cgst) }}</dd></div><div><dt>SGST {{ f.gstRate / 2 }}%</dt><dd class="tnum">{{ money(t.sgst) }}</dd></div> }
+            @if (t.roundOff) { <div><dt>Round off</dt><dd class="tnum">{{ money(t.roundOff) }}</dd></div> }
+            <div class="tot"><dt>Total</dt><dd class="tnum">{{ money(t.total) }}</dd></div>
+          } @else {
+            <div><dt>Taxable value</dt><dd class="tnum">{{ money(d.taxable) }}</dd></div>
+            @if (d.interState) { <div><dt>IGST {{ d.gstRate }}%</dt><dd class="tnum">{{ money(d.igst) }}</dd></div> }
+            @else { <div><dt>CGST {{ d.gstRate / 2 }}%</dt><dd class="tnum">{{ money(d.cgst) }}</dd></div><div><dt>SGST {{ d.gstRate / 2 }}%</dt><dd class="tnum">{{ money(d.sgst) }}</dd></div> }
+            @if (d.roundOff) { <div><dt>Round off</dt><dd class="tnum">{{ money(d.roundOff) }}</dd></div> }
+            <div class="tot"><dt>Total</dt><dd class="tnum">{{ money(d.total) }}</dd></div>
+            @if (d.status === 'Issued') {
+              <div><dt>Received</dt><dd class="tnum">{{ money(d.received) }}</dd></div>
+              @if (d.tds) { <div><dt>TDS deducted</dt><dd class="tnum">{{ money(d.tds) }}</dd></div> }
+              <div class="tot"><dt>Balance due</dt><dd class="tnum">{{ money(d.outstanding) }}</dd></div>
+            }
+          }
+        </dl>
+      </section>
+
+      <!-- Actions -->
+      @if (canManage()) {
+        <section class="card sec actions">
+          @if (d.status === 'Draft') {
+            <button class="btn btn-pri wide" type="button" [disabled]="busy() !== null || !!d.issueBlockedReason" (click)="confirm.set('issue')">
+              <i class="fa-solid fa-stamp"></i> Issue invoice
+            </button>
+            @if (d.issueBlockedReason) { <span class="small block-why">{{ d.issueBlockedReason }}</span> }
+            @else { <span class="small muted">Issuing gives it the next number; it can't be edited afterwards.</span> }
+            <div class="row2">
+              <button class="btn btn-ghost" type="button" [disabled]="!dirty() || busy() !== null" (click)="saveDraft()">
+                <i class="fa-solid" [class]="busy() === 'save' ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> Save draft
+              </button>
+              <button class="btn btn-ghost danger-text" type="button" [disabled]="busy() !== null" (click)="confirm.set('delete')"><i class="fa-solid fa-trash"></i> Delete draft</button>
+            </div>
+          } @else {
+            <button class="btn btn-pri wide" type="button" (click)="download()"><i class="fa-solid fa-download"></i> Download PDF</button>
+            @if (d.status === 'Issued') {
+              <button class="btn btn-ghost wide danger-text" type="button" (click)="cancelReason = ''; confirm.set('cancel')"><i class="fa-solid fa-ban"></i> Cancel invoice</button>
+            }
+          }
+        </section>
+      }
+    </div>
+
+    <section class="card preview">
+      <div class="sec-head">
+        <h3>{{ d.status === 'Draft' ? 'Preview (as saved)' : 'Invoice' }}</h3>
+        @if (pdfLoading()) { <i class="fa-solid fa-spinner fa-spin muted"></i> }
+        <button class="btn-icon ml" type="button" aria-label="Download PDF" (click)="download()"><i class="fa-solid fa-download"></i></button>
+      </div>
+      @if (pdfUrl(); as url) { <iframe [src]="url" title="Invoice PDF"></iframe> }
+    </section>
+  </div>
+} @else {
+  <div class="card empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading the invoice…</span></div>
+}
+
+@if (confirm() === 'issue') {
+  <vp-dialog title="Issue this invoice?" [subtitle]="money(live()?.total ?? d()?.total) + ' to ' + (f.billToName || '')" icon="fa-stamp" size="sm" (closed)="confirm.set(null)">
+    <p class="confirm">It gets the next invoice number and can no longer be edited (a mistake is corrected by cancelling it and issuing a new one). Submitted cases on it move to "Invoice Generated".</p>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="confirm.set(null)">Not yet</button>
+      <button class="btn btn-pri" type="button" [disabled]="busy() !== null" (click)="issue()">
+        <i class="fa-solid" [class]="busy() === 'issue' ? 'fa-spinner fa-spin' : 'fa-stamp'"></i> Issue
+      </button>
+    </ng-container>
+  </vp-dialog>
+}
+@if (confirm() === 'delete') {
+  <vp-dialog title="Delete this draft?" icon="fa-trash" tone="b-danger" size="sm" (closed)="confirm.set(null)">
+    <p class="confirm">The draft has no number yet, so nothing is lost from the invoice series. Its cases go back to "To bill".</p>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="confirm.set(null)">Keep it</button>
+      <button class="btn btn-danger" type="button" [disabled]="busy() !== null" (click)="remove()"><i class="fa-solid fa-trash"></i> Delete</button>
+    </ng-container>
+  </vp-dialog>
+}
+@if (confirm() === 'cancel') {
+  <vp-dialog title="Cancel this invoice?" [subtitle]="d()?.number ?? ''" icon="fa-ban" tone="b-danger" size="sm" (closed)="confirm.set(null)">
+    <div class="fld">
+      <label for="creason">Reason <span class="req">*</span></label>
+      <textarea id="creason" rows="3" [(ngModel)]="cancelReason" maxlength="300" placeholder="e.g. Wrong GSTIN of the bank"></textarea>
+      <span class="hint">The number stays used and the invoice is kept, marked cancelled. Its cases can be billed again.</span>
+    </div>
+    <ng-container footer>
+      <button class="btn btn-ghost" type="button" (click)="confirm.set(null)">Keep it</button>
+      <button class="btn btn-danger" type="button" [disabled]="busy() !== null || !cancelReason.trim()" (click)="cancel()"><i class="fa-solid fa-ban"></i> Cancel invoice</button>
+    </ng-container>
+  </vp-dialog>
+}

@@ -50,7 +50,11 @@ public sealed record GstSettings(
     string? StateCode,
     string? PlaceOfSupply,
     string InvoicePrefix,
-    string AssignmentPrefix);
+    string AssignmentPrefix,
+    string SacCode = "997222",
+    int PaymentDueDays = 30,
+    string? PaymentDetails = null,
+    string? InvoiceTerms = null);
 
 public sealed record NotificationSetting(string Event, string Label, string Description, bool Email, bool Sms, bool InApp);
 

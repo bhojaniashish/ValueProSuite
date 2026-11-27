@@ -66,6 +66,10 @@ public sealed class GstSettingsValidator : AbstractValidator<GstSettings>
         RuleFor(x => x.PlaceOfSupply).MaximumLength(60);
         RuleFor(x => x.InvoicePrefix).NotEmpty().MaximumLength(10).Matches("^[A-Z0-9-]+$").WithMessage("Capital letters, digits or -.");
         RuleFor(x => x.AssignmentPrefix).NotEmpty().MaximumLength(10).Matches("^[A-Z0-9-]+$").WithMessage("Capital letters, digits or -.");
+        RuleFor(x => x.SacCode).NotEmpty().Matches("^[0-9]{4,8}$").WithMessage("4–8 digits, e.g. 997222.");
+        RuleFor(x => x.PaymentDueDays).InclusiveBetween(0, 180);
+        RuleFor(x => x.PaymentDetails).MaximumLength(500);
+        RuleFor(x => x.InvoiceTerms).MaximumLength(1000);
     }
 }
 
