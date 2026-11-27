@@ -7,12 +7,14 @@ using ValuPro.Domain.Assignments;
 using ValuPro.Domain.Documents;
 using ValuPro.Domain.Inspections;
 using ValuPro.Domain.Properties;
+using ValuPro.Domain.Reports;
 using ValuPro.Domain.Valuations;
 
 namespace ValuPro.Infrastructure.Reports;
 
 /// <summary>
-/// The default valuation report (bank style, A4). Bank-specific formats can be added as other <see cref="IReportRenderer"/>s.
+/// The valuation report (bank style, A4). The bank's <see cref="ReportFormatView"/> decides the headings, which
+/// sections print and in what order, which values are stated, and the declaration and limiting conditions.
 /// QuestPDF is used under its Community licence (free below USD 1M annual revenue; see README).
 /// </summary>
 public sealed class DefaultReportTemplate : IReportRenderer
@@ -97,26 +99,28 @@ public sealed class DefaultReportTemplate : IReportRenderer
     private void Body(ColumnDescriptor col, ReportModel m)
     {
         col.Spacing(10);
+        var f = m.Format ?? ReportFormatView.Standard;
         var d = m.Inspection;
         var construction = m.CaseType is CaseType.StageInspection or CaseType.Reinspection;
         var progress = m.Valuation.Progress is { } pi ? (Input: pi, Result: m.Result.Progress ?? ValuationCalculator.Progress(pi)) : ((ProgressInput Input, ProgressResult Result)?)null;
         var no = 0;
-        string Next() => (++no).ToString(CultureInfo.InvariantCulture);
+        string Next() => f.Layout.NumberSections ? (++no).ToString(CultureInfo.InvariantCulture) : "";
 
         col.Item().AlignCenter().Text(m.CaseType switch
         {
             CaseType.StageInspection => "STAGE INSPECTION REPORT",
             CaseType.Reinspection => "RE-INSPECTION REPORT",
-            _ => "VALUATION REPORT",
+            _ => f.Title ?? ReportFormatText.StandardTitle,
         }).FontSize(16).Bold().LetterSpacing(0.05f);
+        if (f.Subtitle is { } sub) col.Item().AlignCenter().PaddingTop(-6).Text(sub).FontSize(9).FontColor(Muted);
         col.Item().Row(row =>
         {
             row.RelativeItem().Column(to =>
             {
                 to.Item().Text("To,").FontColor(Muted);
-                to.Item().Text("The Branch Manager").Bold();
+                to.Item().Text(f.AddressTo).Bold();
                 to.Item().Text(m.BankName);
-                if (m.BranchName is { } b) to.Item().Text($"{b} Branch");
+                if (m.BranchName is { } b) to.Item().Text(b.Contains("branch", StringComparison.OrdinalIgnoreCase) ? b : $"{b} Branch");
                 if (m.BranchAddress is { } ba) to.Item().Text(ba).FontColor(Muted);
             });
             row.ConstantItem(180).AlignRight().Column(r =>
@@ -126,144 +130,52 @@ public sealed class DefaultReportTemplate : IReportRenderer
             });
         });
 
-        Section(col, Next(), "General", c => KeyValues(c,
-        [
-            ("Purpose of valuation", m.Purpose),
-            ("Applicant", m.ApplicantName),
-            ("Owner(s) as per documents", m.OwnerName),
-            ("Bank reference", m.BankReference),
-            ("Date of inspection", m.InspectionDate is { } i ? Day(i) : null),
-            ("Date of valuation", Day(m.ValuationDate)),
-            ("Person met at site", m.PersonMet),
-            ("Previous inspection", m.PreviousNumber is null ? null
-                : Join(" · ", m.PreviousNumber, m.PreviousDate is { } pd ? Day(pd) : null, m.PreviousPercent is { } pp ? $"{N(pp)}% complete" : null)),
-        ]));
-
-        Section(col, Next(), "Property and location", c => c.Column(p =>
-        {
-            p.Spacing(6);
-            p.Item().Element(x => KeyValues(x,
-            [
-                ("Type of property", Type(m.PropertyType)),
-                ("Address", m.PropertyAddress),
-                ("Survey / CTS / Plot no.", Join(" · ", m.SurveyNo is null ? null : $"Survey {m.SurveyNo}", m.CtsNo is null ? null : $"CTS {m.CtsNo}", m.PlotNo is null ? null : $"Plot {m.PlotNo}")),
-                ("Address at site matches", d is null ? null : YesNo(d.Visit.AddressMatches) + (d.Visit.AddressAtSite is { } at ? $" (at site: {at})" : "")),
-                ("Locality", d is null ? null : Join(", ", d.Location.LocalityType, d.Location.LocalityClass, d.Location.Development)),
-                ("Approach road", d is null ? null : Join(", ", d.Location.RoadWidthFt is { } w ? $"{N(w)} ft wide" : null, d.Location.RoadType)),
-                ("Facing / corner plot", d is null ? null : Join(" · ", d.Location.Facing, d.Location.CornerPlot == true ? "Corner plot" : null)),
-                ("Landmark", d?.Location.Landmark),
-                ("Distance to station / bus / city centre", d is null ? null : Join(" / ", Km(d.Location.StationKm), Km(d.Location.BusStopKm), Km(d.Location.CityCentreKm))),
-                ("Civic amenities", d is null ? null : Join(", ", [.. d.Location.Amenities])),
-                ("Negatives in the vicinity", d is null ? null : d.Location.Negatives.Count == 0 ? "None noticed" : Join(", ", [.. d.Location.Negatives])),
-                ("GPS location at site", m.Latitude is { } la && m.Longitude is { } lo ? $"{la.ToString("0.000000", CultureInfo.InvariantCulture)}, {lo.ToString("0.000000", CultureInfo.InvariantCulture)}" : null),
-                ("Occupancy", d is null ? null : Join(" · ", Occupancy(d.Occupancy.OccupiedBy), d.Occupancy.TenantName, d.Occupancy.MonthlyRent is { } rent ? $"rent ₹{N(rent)}/month" : null)),
-            ]));
-            if (d is not null)
-            {
-                p.Item().PaddingTop(4).Text("Boundaries").Bold();
-                p.Item().Table(t =>
-                {
-                    t.ColumnsDefinition(cd => { cd.ConstantColumn(60); cd.RelativeColumn(); cd.RelativeColumn(); cd.ConstantColumn(60); });
-                    t.Header(h => { Head(h, "Side"); Head(h, "As per documents"); Head(h, "As found at site"); Head(h, "Matches"); });
-                    foreach (var (side, b) in new[] { ("North", d.Boundaries.North), ("South", d.Boundaries.South), ("East", d.Boundaries.East), ("West", d.Boundaries.West) })
-                    {
-                        t.Cell().Element(Cell).Text(side).Bold();
-                        t.Cell().Element(Cell).Text(b.AsPerDocuments ?? "—");
-                        t.Cell().Element(Cell).Text(b.AtSite ?? "—");
-                        t.Cell().Element(Cell).Text(YesNo(b.Matches) ?? "—");
-                    }
-                });
-                if (d.Boundaries.Encroachment == true) p.Item().Text($"Encroachment: {d.Boundaries.Note}").FontColor("#B45309");
-            }
-        }));
-
-        Section(col, Next(), "Documents perused", c =>
-        {
-            if (m.Documents.Count == 0)
-            {
-                c.Text("No documents were recorded for this case.").FontColor(Muted);
-                return;
-            }
-            c.Table(t =>
-            {
-                t.ColumnsDefinition(cd => { cd.ConstantColumn(20); cd.RelativeColumn(2.2f); cd.RelativeColumn(1.6f); cd.RelativeColumn(1.1f); cd.RelativeColumn(1.8f); cd.RelativeColumn(1.2f); });
-                t.Header(h => { Head(h, "#"); Head(h, "Document"); Head(h, "Number"); Head(h, "Dated"); Head(h, "Issued / registered by"); Head(h, "Seen"); });
-                var n = 0;
-                foreach (var doc in m.Documents)
-                {
-                    n++;
-                    t.Cell().Element(Cell).Text(n.ToString(CultureInfo.InvariantCulture)).FontColor(Muted);
-                    t.Cell().Element(Cell).Text(doc.Name).Bold();
-                    t.Cell().Element(Cell).Text(doc.Availability == DocumentAvailability.NotProvided ? "—" : doc.Number ?? "—");
-                    t.Cell().Element(Cell).Text(doc.IssuedOn is { } on ? Day(on) : "—");
-                    t.Cell().Element(Cell).Text(doc.Availability == DocumentAvailability.NotProvided ? doc.Notes ?? "—" : doc.IssuedBy ?? "—");
-                    t.Cell().Element(Cell).Text(doc.Availability switch
-                    {
-                        DocumentAvailability.OriginalSeen => "Original",
-                        DocumentAvailability.CopyOnly => "Copy",
-                        _ => "Not provided",
-                    }).FontColor(doc.Availability == DocumentAvailability.NotProvided ? "#B91C1C" : Ink);
-                }
-            });
-        });
-
-        if (d is not null)
-        {
-            if (construction) Section(col, Next(), "Construction progress", c => Construction(c, m, d));
-            Section(col, Next(), "Building, construction and approvals", c => KeyValues(c,
-            [
-                ("Structure", d.Building.StructureType),
-                ("Age of building", d.Building.AgeYears is { } age ? $"{age} years" : null),
-                ("Floors (building / this unit)", Join(" / ", d.Building.TotalFloors?.ToString(CultureInfo.InvariantCulture), d.Building.UnitFloor)),
-                ("Quality / condition", Join(" / ", d.Building.Quality, d.Building.Condition)),
-                ("Construction complete", d.Building.CompletionPercent is { } pc ? $"{pc}%" : null),
-                ("Foundation / walls / roof", Join(" · ", d.Building.Foundation, d.Building.Walls, d.Building.Roof)),
-                ("Flooring / doors & windows", Join(" · ", d.Building.Flooring, d.Building.DoorsWindows)),
-                ("Kitchen / toilets", Join(" · ", d.Building.Kitchen, d.Building.Toilets)),
-                ("Electrical / plumbing", Join(" · ", d.Building.Electrical, d.Building.Plumbing)),
-                ("Lift / parking", Join(" · ", d.Building.Lift is null ? null : d.Building.Lift.Value ? "Lift available" : "No lift", d.Building.Parking is null ? null : $"{d.Building.Parking} parking{(d.Building.ParkingSlots is { } ps ? $" ({ps})" : "")}")),
-                ("Amenities", Join(", ", [.. d.Building.Amenities])),
-                ("Defects noticed", d.Building.Defects.Count == 0 ? null : Join(", ", [.. d.Building.Defects])),
-                ("Approved plan", Join(" · ", Plan(d.Approvals.PlanSeen), d.Approvals.PlanAuthority, d.Approvals.PlanNumber is null ? null : $"No. {d.Approvals.PlanNumber}")),
-                ("Deviation from plan", Join(" — ", d.Approvals.Deviation, d.Approvals.DeviationNote)),
-                ("Occupancy / BU certificate", Oc(d.Approvals.OccupancyCertificate)),
-            ]));
-
-            Section(col, Next(), "Measurements (sq.ft unless stated)", c => c.Table(t =>
-            {
-                var unit = d.Measurements.Unit == "SqM" ? " (sq.m)" : "";
-                t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(); cd.RelativeColumn(); });
-                t.Header(h => { Head(h, "Area" + unit); Head(h, "As per documents", right: true); Head(h, "Measured at site", right: true); });
-                void Row(string label, decimal? docs, decimal? measured)
-                {
-                    if (docs is null && measured is null) return;
-                    t.Cell().Element(Cell).Text(label);
-                    t.Cell().Element(Cell).AlignRight().Text(docs is { } a ? N(a) : "—");
-                    t.Cell().Element(Cell).AlignRight().Text(measured is { } b ? N(b) : "—");
-                }
-                var mm = d.Measurements;
-                Row("Land / plot", mm.LandAsPerDocuments, mm.LandMeasured);
-                Row("Carpet", mm.CarpetAsPerDocuments, mm.CarpetMeasured);
-                Row("Built-up", mm.BuiltUpAsPerDocuments, mm.BuiltUpMeasured);
-                Row("Super built-up", mm.SuperBuiltUpAsPerDocuments, null);
-                foreach (var f in mm.Floors) Row(f.Name ?? "Floor", f.AsPerDocuments, f.Measured);
-            }));
-        }
-
-        if (progress is { } pr) Section(col, Next(), "Progress and disbursement", c => Disbursement(c, pr.Input, pr.Result));
-        if (m.Result.FairMarketValue > 0) Section(col, Next(), construction ? "Market value as on date" : "Valuation", c => Valuation(c, m));
-
         var answers = d?.BankAnswers.Where(a => !string.IsNullOrWhiteSpace(a.Answer)).ToList() ?? [];
-        if (answers.Count > 0)
-            Section(col, Next(), $"{m.BankName}: additional information", c => c.Table(t =>
+        foreach (var s in f.Sections.Where(s => s.Include))
+        {
+            var title = s.Title ?? ReportSections.Find(s.Key)!.Title;
+            switch (s.Key)
             {
-                t.ColumnsDefinition(cd => { cd.RelativeColumn(3); cd.RelativeColumn(2); });
-                foreach (var a in answers)
-                {
-                    t.Cell().Element(Cell).Text(a.Question);
-                    t.Cell().Element(Cell).Text(a.Answer!).Bold();
-                }
-            }));
+                case ReportSections.General:
+                    Section(col, Next(), title, c => General(c, m));
+                    break;
+                case ReportSections.Property:
+                    Section(col, Next(), title, c => Property(c, m, d));
+                    break;
+                case ReportSections.Boundaries when d is not null:
+                    Section(col, Next(), title, c => Boundaries(c, d));
+                    break;
+                case ReportSections.Documents:
+                    Section(col, Next(), title, c => Documents(c, m));
+                    break;
+                case ReportSections.Construction when construction && d is not null:
+                    Section(col, Next(), title, c => Construction(c, m, d));
+                    break;
+                case ReportSections.Building when d is not null:
+                    Section(col, Next(), title, c => Building(c, d));
+                    break;
+                case ReportSections.Measurements when d is not null:
+                    Section(col, Next(), title, c => Measurements(c, d));
+                    break;
+                case ReportSections.Progress when progress is { } pr:
+                    Section(col, Next(), title, c => Disbursement(c, pr.Input, pr.Result));
+                    break;
+                case ReportSections.Valuation when m.Result.FairMarketValue > 0:
+                    Section(col, Next(), s.Title ?? (construction ? "Market value as on date" : title), c => Valuation(c, m, f.Layout));
+                    break;
+                case ReportSections.BankQuestions when answers.Count > 0:
+                    Section(col, Next(), s.Title ?? $"{m.BankName}: additional information", c => c.Table(t =>
+                    {
+                        t.ColumnsDefinition(cd => { cd.RelativeColumn(3); cd.RelativeColumn(2); });
+                        foreach (var a in answers)
+                        {
+                            t.Cell().Element(Cell).Text(a.Question);
+                            t.Cell().Element(Cell).Text(a.Answer!).Bold();
+                        }
+                    }));
+                    break;
+            }
+        }
 
         Section(col, "", "Opinion and remarks", c => c.Column(o =>
         {
@@ -286,17 +198,28 @@ public sealed class DefaultReportTemplate : IReportRenderer
             if (m.Result.FairMarketValue > 0)
                 o.Item().Background(Soft).Padding(8).Text(t =>
                 {
-                    t.Span(construction ? "The fair market value of the property in its present state as on " : "In my opinion, the fair market value of the above property as on ").FontColor(Muted);
-                    t.Span(Day(m.ValuationDate)).Bold();
-                    t.Span(" is ").FontColor(Muted);
-                    t.Span($"₹ {N(m.Result.FairMarketValue)}").Bold();
-                    t.Span($" ({m.Result.FairMarketValueInWords}).").FontColor(Muted);
+                    var r = m.Result;
+                    var wording = f.OpinionWording ?? (construction
+                        ? "The fair market value of the property in its present state as on {date} is {value} ({valueWords})."
+                        : ReportFormatText.StandardOpinion);
+                    var values = new Dictionary<string, string>
+                    {
+                        ["{date}"] = Day(m.ValuationDate),
+                        ["{value}"] = $"₹ {N(r.FairMarketValue)}",
+                        ["{valueWords}"] = r.FairMarketValueInWords,
+                        ["{realizable}"] = r.RealizableValue > 0 ? $"₹ {N(r.RealizableValue)}" : "—",
+                        ["{distress}"] = r.DistressValue > 0 ? $"₹ {N(r.DistressValue)}" : "—",
+                        ["{guideline}"] = r.GuidelineValue > 0 ? $"₹ {N(r.GuidelineValue)}" : "—",
+                    };
+                    foreach (var (text, isValue) in ReportFormatText.Fill(wording, values))
+                        if (isValue) t.Span(text).Bold();
+                        else t.Span(text).FontColor(Muted);
                 });
         }));
 
-        col.Item().EnsureSpace(230).Element(c => Declaration(c, m));
+        col.Item().EnsureSpace(230).Element(c => Declaration(c, m, f));
 
-        if (m.Photos.Count > 0)
+        if (f.Layout.PhotoAnnexure && m.Photos.Count > 0)
         {
             col.Item().PageBreak();
             col.Item().Text("Annexure: Photographs").FontSize(12).Bold().FontColor(m.Firm.Color);
@@ -304,7 +227,124 @@ public sealed class DefaultReportTemplate : IReportRenderer
         }
     }
 
-    private static void Valuation(IContainer c, ReportModel m)
+    private static void General(IContainer c, ReportModel m) => KeyValues(c,
+    [
+        ("Purpose of valuation", m.Purpose),
+        ("Applicant", m.ApplicantName),
+        ("Owner(s) as per documents", m.OwnerName),
+        ("Bank reference", m.BankReference),
+        ("Date of inspection", m.InspectionDate is { } i ? Day(i) : null),
+        ("Date of valuation", Day(m.ValuationDate)),
+        ("Person met at site", m.PersonMet),
+        ("Previous inspection", m.PreviousNumber is null ? null
+            : Join(" · ", m.PreviousNumber, m.PreviousDate is { } pd ? Day(pd) : null, m.PreviousPercent is { } pp ? $"{N(pp)}% complete" : null)),
+    ]);
+
+    private static void Property(IContainer c, ReportModel m, InspectionData? d) => KeyValues(c,
+    [
+        ("Type of property", Type(m.PropertyType)),
+        ("Address", m.PropertyAddress),
+        ("Survey / CTS / Plot no.", Join(" · ", m.SurveyNo is null ? null : $"Survey {m.SurveyNo}", m.CtsNo is null ? null : $"CTS {m.CtsNo}", m.PlotNo is null ? null : $"Plot {m.PlotNo}")),
+        ("Address at site matches", d is null ? null : YesNo(d.Visit.AddressMatches) + (d.Visit.AddressAtSite is { } at ? $" (at site: {at})" : "")),
+        ("Locality", d is null ? null : Join(", ", d.Location.LocalityType, d.Location.LocalityClass, d.Location.Development)),
+        ("Approach road", d is null ? null : Join(", ", d.Location.RoadWidthFt is { } w ? $"{N(w)} ft wide" : null, d.Location.RoadType)),
+        ("Facing / corner plot", d is null ? null : Join(" · ", d.Location.Facing, d.Location.CornerPlot == true ? "Corner plot" : null)),
+        ("Landmark", d?.Location.Landmark),
+        ("Distance to station / bus / city centre", d is null ? null : Join(" / ", Km(d.Location.StationKm), Km(d.Location.BusStopKm), Km(d.Location.CityCentreKm))),
+        ("Civic amenities", d is null ? null : Join(", ", [.. d.Location.Amenities])),
+        ("Negatives in the vicinity", d is null ? null : d.Location.Negatives.Count == 0 ? "None noticed" : Join(", ", [.. d.Location.Negatives])),
+        ("GPS location at site", m.Latitude is { } la && m.Longitude is { } lo ? $"{la.ToString("0.000000", CultureInfo.InvariantCulture)}, {lo.ToString("0.000000", CultureInfo.InvariantCulture)}" : null),
+        ("Occupancy", d is null ? null : Join(" · ", Occupancy(d.Occupancy.OccupiedBy), d.Occupancy.TenantName, d.Occupancy.MonthlyRent is { } rent ? $"rent ₹{N(rent)}/month" : null)),
+    ]);
+
+    private static void Boundaries(IContainer c, InspectionData d) => c.Column(p =>
+    {
+        p.Spacing(4);
+        p.Item().Table(t =>
+        {
+            t.ColumnsDefinition(cd => { cd.ConstantColumn(60); cd.RelativeColumn(); cd.RelativeColumn(); cd.ConstantColumn(60); });
+            t.Header(h => { Head(h, "Side"); Head(h, "As per documents"); Head(h, "As found at site"); Head(h, "Matches"); });
+            foreach (var (side, b) in new[] { ("North", d.Boundaries.North), ("South", d.Boundaries.South), ("East", d.Boundaries.East), ("West", d.Boundaries.West) })
+            {
+                t.Cell().Element(Cell).Text(side).Bold();
+                t.Cell().Element(Cell).Text(b.AsPerDocuments ?? "—");
+                t.Cell().Element(Cell).Text(b.AtSite ?? "—");
+                t.Cell().Element(Cell).Text(YesNo(b.Matches) ?? "—");
+            }
+        });
+        if (d.Boundaries.Encroachment == true) p.Item().Text($"Encroachment: {d.Boundaries.Note}").FontColor("#B45309");
+    });
+
+    private static void Documents(IContainer c, ReportModel m)
+    {
+        if (m.Documents.Count == 0)
+        {
+            c.Text("No documents were recorded for this case.").FontColor(Muted);
+            return;
+        }
+        c.Table(t =>
+        {
+            t.ColumnsDefinition(cd => { cd.ConstantColumn(20); cd.RelativeColumn(2.2f); cd.RelativeColumn(1.6f); cd.RelativeColumn(1.1f); cd.RelativeColumn(1.8f); cd.RelativeColumn(1.2f); });
+            t.Header(h => { Head(h, "#"); Head(h, "Document"); Head(h, "Number"); Head(h, "Dated"); Head(h, "Issued / registered by"); Head(h, "Seen"); });
+            var n = 0;
+            foreach (var doc in m.Documents)
+            {
+                n++;
+                t.Cell().Element(Cell).Text(n.ToString(CultureInfo.InvariantCulture)).FontColor(Muted);
+                t.Cell().Element(Cell).Text(doc.Name).Bold();
+                t.Cell().Element(Cell).Text(doc.Availability == DocumentAvailability.NotProvided ? "—" : doc.Number ?? "—");
+                t.Cell().Element(Cell).Text(doc.IssuedOn is { } on ? Day(on) : "—");
+                t.Cell().Element(Cell).Text(doc.Availability == DocumentAvailability.NotProvided ? doc.Notes ?? "—" : doc.IssuedBy ?? "—");
+                t.Cell().Element(Cell).Text(doc.Availability switch
+                {
+                    DocumentAvailability.OriginalSeen => "Original",
+                    DocumentAvailability.CopyOnly => "Copy",
+                    _ => "Not provided",
+                }).FontColor(doc.Availability == DocumentAvailability.NotProvided ? "#B91C1C" : Ink);
+            }
+        });
+    }
+
+    private static void Building(IContainer c, InspectionData d) => KeyValues(c,
+    [
+        ("Structure", d.Building.StructureType),
+        ("Age of building", d.Building.AgeYears is { } age ? $"{age} years" : null),
+        ("Floors (building / this unit)", Join(" / ", d.Building.TotalFloors?.ToString(CultureInfo.InvariantCulture), d.Building.UnitFloor)),
+        ("Quality / condition", Join(" / ", d.Building.Quality, d.Building.Condition)),
+        ("Construction complete", d.Building.CompletionPercent is { } pc ? $"{pc}%" : null),
+        ("Foundation / walls / roof", Join(" · ", d.Building.Foundation, d.Building.Walls, d.Building.Roof)),
+        ("Flooring / doors & windows", Join(" · ", d.Building.Flooring, d.Building.DoorsWindows)),
+        ("Kitchen / toilets", Join(" · ", d.Building.Kitchen, d.Building.Toilets)),
+        ("Electrical / plumbing", Join(" · ", d.Building.Electrical, d.Building.Plumbing)),
+        ("Lift / parking", Join(" · ", d.Building.Lift is null ? null : d.Building.Lift.Value ? "Lift available" : "No lift", d.Building.Parking is null ? null : $"{d.Building.Parking} parking{(d.Building.ParkingSlots is { } ps ? $" ({ps})" : "")}")),
+        ("Amenities", Join(", ", [.. d.Building.Amenities])),
+        ("Defects noticed", d.Building.Defects.Count == 0 ? null : Join(", ", [.. d.Building.Defects])),
+        ("Approved plan", Join(" · ", Plan(d.Approvals.PlanSeen), d.Approvals.PlanAuthority, d.Approvals.PlanNumber is null ? null : $"No. {d.Approvals.PlanNumber}")),
+        ("Deviation from plan", Join(" — ", d.Approvals.Deviation, d.Approvals.DeviationNote)),
+        ("Occupancy / BU certificate", Oc(d.Approvals.OccupancyCertificate)),
+    ]);
+
+    private static void Measurements(IContainer c, InspectionData d) => c.Table(t =>
+    {
+        var unit = d.Measurements.Unit == "SqM" ? " (sq.m)" : "";
+        t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(); cd.RelativeColumn(); });
+        t.Header(h => { Head(h, "Area" + unit); Head(h, "As per documents", right: true); Head(h, "Measured at site", right: true); });
+        void Row(string label, decimal? docs, decimal? measured)
+        {
+            if (docs is null && measured is null) return;
+            t.Cell().Element(Cell).Text(label);
+            t.Cell().Element(Cell).AlignRight().Text(docs is { } a ? N(a) : "—");
+            t.Cell().Element(Cell).AlignRight().Text(measured is { } b ? N(b) : "—");
+        }
+        var mm = d.Measurements;
+        Row("Land / plot", mm.LandAsPerDocuments, mm.LandMeasured);
+        Row("Carpet", mm.CarpetAsPerDocuments, mm.CarpetMeasured);
+        Row("Built-up", mm.BuiltUpAsPerDocuments, mm.BuiltUpMeasured);
+        Row("Super built-up", mm.SuperBuiltUpAsPerDocuments, null);
+        foreach (var fl in mm.Floors) Row(fl.Name ?? "Floor", fl.AsPerDocuments, fl.Measured);
+    });
+
+    private static void Valuation(IContainer c, ReportModel m, ReportLayout layout)
     {
         var v = m.Valuation;
         var r = m.Result;
@@ -315,19 +355,20 @@ public sealed class DefaultReportTemplate : IReportRenderer
                 ? $"Method: composite rate (sales comparison), on the {ValuationCalculator.Basis(v.AreaBasis).ToLowerInvariant()} area."
                 : "Method: land and building (land at market rate plus depreciated replacement cost of the building).").FontColor(Muted);
 
-            col.Item().Table(t =>
-            {
-                t.ColumnsDefinition(cd => { cd.RelativeColumn(1.4f); cd.RelativeColumn(2.6f); cd.RelativeColumn(1.2f); });
-                t.Header(h => { Head(h, "Item"); Head(h, "Working"); Head(h, "Amount (₹)", right: true); });
-                foreach (var l in r.Working)
+            if (layout.ShowWorking)
+                col.Item().Table(t =>
                 {
-                    t.Cell().Element(Cell).Text(l.Label).Bold();
-                    t.Cell().Element(Cell).Text(l.Working ?? "").FontColor(Muted);
-                    t.Cell().Element(Cell).AlignRight().Text(N(l.Amount));
-                }
-                t.Cell().ColumnSpan(2).Element(Cell).Text("Total").Bold();
-                t.Cell().Element(Cell).AlignRight().Text(N(r.MarketValueBeforeRounding)).Bold();
-            });
+                    t.ColumnsDefinition(cd => { cd.RelativeColumn(1.4f); cd.RelativeColumn(2.6f); cd.RelativeColumn(1.2f); });
+                    t.Header(h => { Head(h, "Item"); Head(h, "Working"); Head(h, "Amount (₹)", right: true); });
+                    foreach (var l in r.Working)
+                    {
+                        t.Cell().Element(Cell).Text(l.Label).Bold();
+                        t.Cell().Element(Cell).Text(l.Working ?? "").FontColor(Muted);
+                        t.Cell().Element(Cell).AlignRight().Text(N(l.Amount));
+                    }
+                    t.Cell().ColumnSpan(2).Element(Cell).Text("Total").Bold();
+                    t.Cell().Element(Cell).AlignRight().Text(N(r.MarketValueBeforeRounding)).Bold();
+                });
 
             col.Item().Table(t =>
             {
@@ -342,10 +383,10 @@ public sealed class DefaultReportTemplate : IReportRenderer
                     if (strong) val.Bold().FontColor(m.Firm.Color);
                 }
                 Row("Fair market value (rounded)", r.FairMarketValue, strong: true);
-                Row($"Realizable value ({N(v.RealizablePercent)}% of market value)", r.RealizableValue);
-                Row($"Distress / forced sale value ({N(v.DistressPercent)}%)", r.DistressValue);
-                Row($"Government (guideline) value{(v.CircleRatePerSqM > 0 ? $" at ₹{N(v.CircleRatePerSqM)}/sq.m" : "")}", r.GuidelineValue);
-                Row("Insurance value (cost to rebuild, excluding land)", r.InsuranceValue);
+                if (layout.ShowRealizable) Row($"Realizable value ({N(v.RealizablePercent)}% of market value)", r.RealizableValue);
+                if (layout.ShowDistress) Row($"Distress / forced sale value ({N(v.DistressPercent)}%)", r.DistressValue);
+                if (layout.ShowGuideline) Row($"Government (guideline) value{(v.CircleRatePerSqM > 0 ? $" at ₹{N(v.CircleRatePerSqM)}/sq.m" : "")}", r.GuidelineValue);
+                if (layout.ShowInsurance) Row("Insurance value (cost to rebuild, excluding land)", r.InsuranceValue);
             });
             col.Item().Text($"Fair market value in words: {r.FairMarketValueInWords}").Italic();
             if (!string.IsNullOrWhiteSpace(v.Remarks)) col.Item().Text(v.Remarks).FontColor(Muted);
@@ -405,13 +446,24 @@ public sealed class DefaultReportTemplate : IReportRenderer
         });
     }
 
-    private static void Declaration(IContainer c, ReportModel m)
+    private static void Declaration(IContainer c, ReportModel m, ReportFormatView f)
     {
         c.Column(col =>
         {
             col.Spacing(6);
             col.Item().Text("Declaration").Bold().FontColor(m.Firm.Color);
             col.Item().Text(m.Declaration).FontSize(8.6f);
+            if (f.LimitingConditions.Count > 0)
+            {
+                col.Item().PaddingTop(4).Text("Limiting conditions").Bold().FontColor(m.Firm.Color);
+                var n = 0;
+                foreach (var lc in f.LimitingConditions)
+                    col.Item().Row(r =>
+                    {
+                        r.ConstantItem(16).Text($"{++n}.").FontSize(8.6f).FontColor(Muted);
+                        r.RelativeItem().Text(lc).FontSize(8.6f);
+                    });
+            }
             col.Item().PaddingTop(10).Row(row =>
             {
                 row.RelativeItem().AlignBottom().Column(p =>
@@ -425,6 +477,7 @@ public sealed class DefaultReportTemplate : IReportRenderer
                     else s.Item().Height(52).AlignRight().AlignBottom().Text(m.Draft ? "(signature on the final report)" : "").FontSize(8).FontColor(Muted);
                     s.Item().AlignRight().Text(m.Signer?.Name ?? "Valuer").Bold();
                     if (m.Signer?.RegistrationNo is { } reg) s.Item().AlignRight().Text($"Reg. No. {reg}").FontSize(8.5f);
+                    if (m.PanelCode is { } panel) s.Item().AlignRight().Text($"{m.BankName} panel no. {panel}").FontSize(8.5f);
                     s.Item().AlignRight().Text($"For {m.Firm.Name}").FontSize(8.5f).FontColor(Muted);
                     if (!m.Draft && m.ApprovedBy is { } a) s.Item().AlignRight().Text($"Reviewed by {a}").FontSize(7.5f).FontColor(Muted);
                 });

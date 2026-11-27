@@ -349,6 +349,10 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("PanelCode")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<string>("RateBasis")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -358,9 +362,8 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
-                    b.Property<string>("ReportFormat")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<Guid?>("ReportFormatId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ShortCode")
                         .IsRequired()
@@ -377,6 +380,8 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ReportFormatId");
 
                     b.HasIndex("TenantId");
 
@@ -1549,6 +1554,80 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
                     b.ToTable("ReportFiles", (string)null);
                 });
 
+            modelBuilder.Entity("ValuPro.Domain.Reports.ReportFormat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AddressTo")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Declaration")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Layout")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LimitingConditions")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OpinionWording")
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ReportFormats", (string)null);
+                });
+
             modelBuilder.Entity("ValuPro.Domain.Settings.FirmSettings", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2029,6 +2108,11 @@ namespace ValuPro.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("ValuPro.Domain.Banks.Bank", b =>
                 {
+                    b.HasOne("ValuPro.Domain.Reports.ReportFormat", null)
+                        .WithMany()
+                        .HasForeignKey("ReportFormatId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.OwnsMany("ValuPro.Domain.Banks.BankQuestion", "Questions", b1 =>
                         {
                             b1.Property<Guid>("BankId");

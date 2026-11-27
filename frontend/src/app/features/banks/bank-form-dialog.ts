@@ -2,6 +2,7 @@ import { Component, computed, inject, input, OnInit, output, signal } from '@ang
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
+import { ReportFormatItem, ReportFormatsApi } from '../report-formats/report-formats.api';
 import { toProblem } from '../../core/api/problem';
 import { Dialog } from '../../core/ui/dialog';
 import { BankBadge } from './bank-badge';
@@ -50,11 +51,19 @@ import { Bank, BanksApi, COMMON_BANKS, DEPRECIATION_METHODS, DepreciationMethod,
             @if (bad('ifscPrefix')) { <span class="err">{{ server()['ifscPrefix'] ?? 'First 4 letters of the IFSC, e.g. SBIN.' }}</span> }
             @else { <span class="hint">Used to check branch IFSC codes.</span> }
           </div>
-          <div class="fld">
-            <label for="format">Valuation Format</label>
-            <input id="format" formControlName="reportFormat" placeholder="SBI VR-Format 3.2" list="formats" />
-            <datalist id="formats"><option value="Standard Format"></option><option value="IBA Format"></option><option value="Custom Template"></option></datalist>
-            <span class="hint">Linked to a report template in Phase 3.</span>
+          <div class="fld" [class.invalid]="bad('reportFormatId')">
+            <label for="format">Report format</label>
+            <select id="format" formControlName="reportFormatId">
+              <option value="">{{ defaultFormat() ? 'Firm default (' + defaultFormat() + ')' : 'Standard report' }}</option>
+              @for (f of formats(); track f.id) { <option [value]="f.id">{{ f.name }}</option> }
+            </select>
+            @if (server()['reportFormatId']) { <span class="err">{{ server()['reportFormatId'] }}</span> }
+            @else { <span class="hint">Formats are set up in Settings → Templates.</span> }
+          </div>
+          <div class="fld" [class.invalid]="bad('panelCode')">
+            <label for="panel">Empanelment no.</label>
+            <input id="panel" class="tnum" formControlName="panelCode" placeholder="e.g. SBI/ZO/VAL/112" maxlength="60" />
+            <span class="hint">Your panel number with this bank, printed under the signature.</span>
           </div>
         </div>
 
@@ -121,6 +130,9 @@ export class BankFormDialog implements OnInit {
   protected readonly rateBases = RATE_BASES;
   protected readonly depreciations = DEPRECIATION_METHODS;
   protected readonly presets = computed(() => COMMON_BANKS.filter((b) => !this.existingCodes().includes(b.code)));
+  private readonly formatsApi = inject(ReportFormatsApi);
+  protected readonly formats = signal<ReportFormatItem[]>([]);
+  protected readonly defaultFormat = computed(() => this.formats().find((f) => f.isDefault)?.name ?? null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly server = signal<Record<string, string>>({});
@@ -130,7 +142,8 @@ export class BankFormDialog implements OnInit {
     shortCode: ['', [Validators.required, Validators.pattern(/^[A-Za-z0-9]{2,10}$/)]],
     brandColor: ['#2B50C4', Validators.pattern(/^#[0-9A-Fa-f]{6}$/)],
     ifscPrefix: ['', Validators.pattern(/^[A-Za-z]{4}$/)],
-    reportFormat: ['', Validators.maxLength(100)],
+    reportFormatId: [''],
+    panelCode: ['', Validators.maxLength(60)],
     isActive: [true],
     rateBasis: ['MarketRates' as RateBasis],
     depreciation: ['StraightLine' as DepreciationMethod],
@@ -149,12 +162,13 @@ export class BankFormDialog implements OnInit {
     const b = this.bank();
     if (b) {
       this.form.setValue({
-        name: b.name, shortCode: b.shortCode, brandColor: b.brandColor, ifscPrefix: b.ifscPrefix ?? '', reportFormat: b.reportFormat ?? '',
+        name: b.name, shortCode: b.shortCode, brandColor: b.brandColor, ifscPrefix: b.ifscPrefix ?? '', reportFormatId: b.reportFormatId ?? '', panelCode: b.panelCode ?? '',
         isActive: b.isActive, rateBasis: b.rules.rateBasis, depreciation: b.rules.depreciation,
         distressPercent: b.rules.distressPercent, realizablePercent: b.rules.realizablePercent,
       });
     }
     this.form.valueChanges.subscribe(() => this.server.set({}));
+    this.formatsApi.list().subscribe({ next: (f) => this.formats.set(f), error: () => this.formats.set([]) });
   }
 
   protected pick(code: string): void {
@@ -182,7 +196,8 @@ export class BankFormDialog implements OnInit {
       shortCode: v.shortCode.trim().toUpperCase(),
       brandColor: v.brandColor,
       ifscPrefix: v.ifscPrefix.trim().toUpperCase() || null,
-      reportFormat: v.reportFormat.trim() || null,
+      reportFormatId: v.reportFormatId || null,
+      panelCode: v.panelCode.trim() || null,
       isActive: v.isActive,
       rules: {
         rateBasis: v.rateBasis,

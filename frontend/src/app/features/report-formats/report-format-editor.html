@@ -1,0 +1,176 @@
+@if (error()) {
+  <div class="card empty">
+    <i class="fa-solid fa-triangle-exclamation"></i><b>Could not open the format</b><span>{{ error() }}</span>
+    <a class="btn btn-soft btn-sm" routerLink="/settings" [queryParams]="{ tab: 'templates' }">Back to formats</a>
+  </div>
+} @else if (detail(); as d) {
+  <div class="head card">
+    <a class="back" routerLink="/settings" [queryParams]="{ tab: 'templates' }" aria-label="Back to formats"><i class="fa-solid fa-arrow-left"></i></a>
+    <div class="who">
+      <div class="l1">
+        <b>{{ f.name || 'Untitled format' }}</b>
+        @if (d.isDefault) { <span class="badge b-ok">Default</span> }
+        @if (dirty()) { <span class="small unsaved">Not saved</span> }
+      </div>
+      <span class="small muted">
+        @if (d.banks.length) { Used by {{ d.banks.join(', ') }} } @else if (d.isDefault) { Used by banks without their own format } @else { Not used by any bank yet: pick it on the bank form }
+      </span>
+    </div>
+    @if (canEdit()) {
+      <div class="acts">
+        @if (dirty()) { <button class="btn btn-ghost" type="button" (click)="reset()">Undo changes</button> }
+        <button class="btn btn-pri" type="button" [disabled]="!dirty() || saving()" (click)="save()">
+          <i class="fa-solid" [class]="saving() ? 'fa-spinner fa-spin' : 'fa-floppy-disk'"></i> Save format
+        </button>
+      </div>
+    }
+  </div>
+
+  <div class="layout">
+    <fieldset class="form" [disabled]="!canEdit()">
+      <!-- About -->
+      <section class="card sec">
+        <div class="sec-head"><h3>About</h3></div>
+        <div class="grid">
+          <div class="fld" [class.invalid]="!!err('name')">
+            <label for="fname">Name <span class="req">*</span></label>
+            <input id="fname" [(ngModel)]="f.name" (ngModelChange)="changed()" maxlength="100" placeholder="e.g. SBI Format 3.2" />
+            @if (err('name')) { <span class="err">{{ err('name') }}</span> }
+          </div>
+          <div class="fld">
+            <label for="fdesc">Description</label>
+            <input id="fdesc" [(ngModel)]="f.description" (ngModelChange)="changed()" maxlength="300" placeholder="Which bank circular or version it follows" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Heading -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Heading</h3><span class="small muted">Empty = the standard wording</span></div>
+        <div class="grid">
+          <div class="fld" [class.invalid]="!!err('title')">
+            <label for="ftitle">Report title</label>
+            <input id="ftitle" [(ngModel)]="f.title" (ngModelChange)="changed()" maxlength="100" [placeholder]="catalog()?.standardTitle ?? ''" />
+            <span class="hint">Stage and re-inspection reports keep their own titles.</span>
+          </div>
+          <div class="fld">
+            <label for="fsub">Line under the title</label>
+            <input id="fsub" [(ngModel)]="f.subtitle" (ngModelChange)="changed()" maxlength="150" placeholder="e.g. As per IBA format" />
+          </div>
+          <div class="fld">
+            <label for="fto">Addressed to</label>
+            <input id="fto" [(ngModel)]="f.addressTo" (ngModelChange)="changed()" maxlength="100" [placeholder]="catalog()?.standardAddressTo ?? ''" />
+            <span class="hint">Followed by the bank and branch.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sections -->
+      <section class="card sec">
+        <div class="sec-head">
+          <h3>Sections</h3>
+          <label class="inline-switch small">
+            <span class="switch"><input type="checkbox" [checked]="f.layout.numberSections" (change)="flag('numberSections', $any($event.target).checked)" /><span class="track"></span></span>
+            Number them
+          </label>
+        </div>
+        <p class="small muted intro">In the order they print. The opinion, declaration and signature always close the report.</p>
+        <ol class="sections">
+          @for (s of f.layout.sections; track s.key; let i = $index, first = $first, last = $last) {
+            <li [class.off]="!s.include">
+              <div class="order">
+                <button class="btn-icon" type="button" [disabled]="first" [attr.aria-label]="'Move ' + info(s.key)?.title + ' up'" (click)="move(i, -1)"><i class="fa-solid fa-arrow-up"></i></button>
+                <button class="btn-icon" type="button" [disabled]="last" [attr.aria-label]="'Move ' + info(s.key)?.title + ' down'" (click)="move(i, 1)"><i class="fa-solid fa-arrow-down"></i></button>
+              </div>
+              <div class="what">
+                <div class="l1">
+                  <b>{{ info(s.key)?.title }}</b>
+                  @if (info(s.key)?.stageOnly) { <span class="badge b-purple">Stage visits</span> }
+                </div>
+                <span class="small muted">{{ info(s.key)?.description }}</span>
+                @if (s.include) {
+                  <input class="dense" [attr.aria-label]="'Heading for ' + info(s.key)?.title" [(ngModel)]="s.title" (ngModelChange)="changed()" maxlength="100"
+                    [placeholder]="'Heading: ' + info(s.key)?.title" />
+                }
+              </div>
+              <span class="switch" [title]="s.include ? 'Printed' : 'Left out'">
+                <input type="checkbox" [attr.aria-label]="'Print ' + info(s.key)?.title" [checked]="s.include" (change)="s.include = $any($event.target).checked; changed()" />
+                <span class="track"></span>
+              </span>
+            </li>
+          }
+        </ol>
+        @if (err('layout')) { <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ err('layout') }}</div> }
+      </section>
+
+      <!-- Values -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Valuation section shows</h3></div>
+        <ul class="flags">
+          <li><span>Fair market value and value in words</span><span class="small muted">Always</span></li>
+          @for (v of values; track v.key) {
+            <li>
+              <span>{{ v.label }}</span>
+              <span class="switch"><input type="checkbox" [attr.aria-label]="v.label" [checked]="f.layout[v.key]" (change)="flag(v.key, $any($event.target).checked)" /><span class="track"></span></span>
+            </li>
+          }
+          <li>
+            <span>Photo annexure</span>
+            <span class="switch"><input type="checkbox" aria-label="Photo annexure" [checked]="f.layout.photoAnnexure" (change)="flag('photoAnnexure', $any($event.target).checked)" /><span class="track"></span></span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Wording -->
+      <section class="card sec">
+        <div class="sec-head"><h3>Wording</h3></div>
+        <div class="fld" [class.invalid]="!!err('opinionWording')">
+          <label for="fop">Valuer's certificate (opinion line)</label>
+          <textarea #op id="fop" rows="3" [(ngModel)]="f.opinionWording" (ngModelChange)="changed()" maxlength="600" [placeholder]="catalog()?.standardOpinion ?? ''"></textarea>
+          <div class="tokens">
+            @for (p of catalog()?.opinionPlaceholders ?? []; track p.token) {
+              <button type="button" class="token" [title]="p.meaning" (click)="insert('opinionWording', op, p)">{{ p.token }}</button>
+            }
+            @if (!f.opinionWording) { <button type="button" class="link small" (click)="startFromStandard('opinionWording')">Start from the standard line</button> }
+          </div>
+          @if (err('opinionWording')) { <span class="err">{{ err('opinionWording') }}</span> }
+          @else { <span class="hint">Empty = the standard line. Values print in bold. Stage visits add the release sentence.</span> }
+        </div>
+
+        <div class="fld" [class.invalid]="!!err('declaration')">
+          <label for="fdec">Declaration</label>
+          <textarea #dec id="fdec" rows="8" [(ngModel)]="f.declaration" (ngModelChange)="changed()" maxlength="4000" placeholder="Empty = the standard declaration"></textarea>
+          <div class="tokens">
+            @for (p of catalog()?.declarationPlaceholders ?? []; track p.token) {
+              <button type="button" class="token" [title]="p.meaning" (click)="insert('declaration', dec, p)">{{ p.token }}</button>
+            }
+            @if (!f.declaration) { <button type="button" class="link small" (click)="startFromStandard('declaration')">Start from the standard declaration</button> }
+          </div>
+          @if (err('declaration')) { <span class="err">{{ err('declaration') }}</span> }
+          @else { <span class="hint">A case can still change its own declaration on the report page.</span> }
+        </div>
+
+        <div class="fld">
+          <label for="flim">Limiting conditions</label>
+          <textarea id="flim" rows="5" [(ngModel)]="f.limitingConditions" (ngModelChange)="changed()" maxlength="4000"
+            placeholder="One per line, e.g.&#10;This report is valid for six months from the date of valuation.&#10;This is not a certificate of title."></textarea>
+          <span class="hint">Printed as a numbered list after the declaration.</span>
+        </div>
+      </section>
+    </fieldset>
+
+    <!-- Preview -->
+    <section class="card preview">
+      <div class="sec-head">
+        <h3>Preview</h3>
+        @if (previewing()) { <i class="fa-solid fa-spinner fa-spin muted"></i> }
+        <vp-choice class="ml" [options]="kinds" [value]="kind()" (valueChange)="setKind($event)" />
+      </div>
+      <p class="small muted intro">A sample case in this format, updated as you edit (not saved until you save).</p>
+      @if (previewError()) { <div class="alert-inline danger"><i class="fa-solid fa-circle-exclamation"></i> {{ previewError() }}</div> }
+      @if (previewUrl(); as url) { <iframe [src]="url" title="Format preview"></iframe> }
+    </section>
+  </div>
+} @else {
+  <div class="card empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading the format…</span></div>
+}

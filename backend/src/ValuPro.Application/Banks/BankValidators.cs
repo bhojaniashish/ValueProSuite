@@ -26,7 +26,7 @@ public sealed class SaveBankRequestValidator : AbstractValidator<SaveBankRequest
         RuleFor(x => x.BrandColor).Matches("^#[0-9A-Fa-f]{6}$").WithMessage("Use a colour like #2453A6.");
         RuleFor(x => x.IfscPrefix).Matches("^[A-Za-z]{4}$").WithMessage("The first 4 letters of the bank's IFSC, e.g. SBIN.")
             .When(x => !string.IsNullOrWhiteSpace(x.IfscPrefix));
-        RuleFor(x => x.ReportFormat).MaximumLength(100);
+        RuleFor(x => x.PanelCode).MaximumLength(60);
         RuleFor(x => x.Rules).NotNull().SetValidator(new BankRulesValidator());
     }
 }

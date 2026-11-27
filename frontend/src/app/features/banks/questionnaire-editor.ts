@@ -14,7 +14,7 @@ import { ANSWER_TYPES, AnswerType, Bank, BanksApi, Question } from './banks.api'
     <div class="card" id="questionnaire">
       <div class="card-head">
         <h3>Dynamic Questionnaire</h3>
-        <span class="sub">Format: {{ bank().reportFormat || 'Standard Format' }} · {{ items().length }} question{{ items().length === 1 ? '' : 's' }}</span>
+        <span class="sub">Format: {{ bank().reportFormatName || 'Firm default' }} · {{ items().length }} question{{ items().length === 1 ? '' : 's' }}</span>
         @if (canEdit()) {
           <button class="btn btn-soft btn-sm ml" type="button" (click)="add()"><i class="fa-solid fa-plus"></i> Add question</button>
         }

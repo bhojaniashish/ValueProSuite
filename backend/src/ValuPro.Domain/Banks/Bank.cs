@@ -37,8 +37,11 @@ public class Bank : TenantEntity
     /// <summary>First four letters of the bank's IFSC codes (e.g. SBIN), used to check branch IFSCs.</summary>
     public string? IfscPrefix { get; set; }
 
-    /// <summary>The bank's report format name. Becomes a link to a report template in Phase 3.</summary>
-    public string? ReportFormat { get; set; }
+    /// <summary>The report format this bank wants (null = the firm's default format).</summary>
+    public Guid? ReportFormatId { get; set; }
+
+    /// <summary>The firm's empanelment / panel number with this bank, printed under the signature.</summary>
+    public string? PanelCode { get; set; }
 
     public bool IsActive { get; set; } = true;
 

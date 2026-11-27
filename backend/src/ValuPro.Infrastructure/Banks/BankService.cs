@@ -4,6 +4,7 @@ using ValuPro.Application.Banks;
 using ValuPro.Infrastructure.Assignments;
 using ValuPro.Application.Common;
 using ValuPro.Domain.Banks;
+using ValuPro.Domain.Reports;
 using ValuPro.Infrastructure.Persistence;
 
 namespace ValuPro.Infrastructure.Banks;
@@ -38,6 +39,7 @@ public sealed class BankService(AppDbContext db, IAssignmentUsage usage) : IBank
         if (await db.Set<Bank>().AnyAsync(b => b.ShortCode == code, ct))
             return Error.Conflict($"Another bank already uses the code {code}.", "shortCode");
 
+        if (await FormatProblemAsync(r, ct) is { } bad) return bad;
         var bank = new Bank { Name = r.Name.Trim(), ShortCode = code };
         Apply(bank, r);
         db.Add(bank);
@@ -53,6 +55,7 @@ public sealed class BankService(AppDbContext db, IAssignmentUsage usage) : IBank
         var code = r.ShortCode.Trim().ToUpperInvariant();
         if (await db.Set<Bank>().AnyAsync(b => b.ShortCode == code && b.Id != id, ct))
             return Error.Conflict($"Another bank already uses the code {code}.", "shortCode");
+        if (await FormatProblemAsync(r, ct) is { } bad) return bad;
 
         Apply(bank, r);
         await db.SaveChangesAsync(ct);
@@ -172,17 +175,23 @@ public sealed class BankService(AppDbContext db, IAssignmentUsage usage) : IBank
         var rows = await q.Select(b => new
         {
             Bank = b,
+            Format = db.Set<ReportFormat>().Where(f => f.Id == b.ReportFormatId).Select(f => f.Name).FirstOrDefault(),
             Branches = b.Branches.Count(br => !br.IsDeleted),
             Active = b.Branches.Count(br => !br.IsDeleted && br.IsActive),
         }).AsNoTracking().ToListAsync(ct);
-        return [.. rows.Select(r => ToSummary(r.Bank, r.Branches, r.Active))];
+        return [.. rows.Select(r => ToSummary(r.Bank, r.Format, r.Branches, r.Active))];
     }
 
     private async Task<BankSummary> SummaryAsync(Guid id, CancellationToken ct) =>
         (await Project(db.Set<Bank>().Where(b => b.Id == id), ct)).First();
 
-    private static BankSummary ToSummary(Bank b, int branches, int active) => new(b.Id, b.Name, b.ShortCode, b.BrandColor,
-        b.IfscPrefix, b.ReportFormat, b.IsActive, new BankRules(b.RateBasis, b.DistressPercent, b.RealizablePercent, b.Depreciation),
+    private async Task<Error?> FormatProblemAsync(SaveBankRequest r, CancellationToken ct) =>
+        r.ReportFormatId is { } f && !await db.Set<ReportFormat>().AnyAsync(x => x.Id == f, ct)
+            ? Error.Validation("Choose one of the firm's report formats.", "reportFormatId")
+            : null;
+
+    private static BankSummary ToSummary(Bank b, string? format, int branches, int active) => new(b.Id, b.Name, b.ShortCode, b.BrandColor,
+        b.IfscPrefix, b.ReportFormatId, format, b.PanelCode, b.IsActive, new BankRules(b.RateBasis, b.DistressPercent, b.RealizablePercent, b.Depreciation),
         branches, active, b.Questions.Count);
 
     private static IReadOnlyList<QuestionItem> Questions(Bank b) =>
@@ -197,7 +206,8 @@ public sealed class BankService(AppDbContext db, IAssignmentUsage usage) : IBank
         b.ShortCode = r.ShortCode.Trim().ToUpperInvariant();
         b.BrandColor = r.BrandColor.ToUpperInvariant();
         b.IfscPrefix = Normalize(r.IfscPrefix);
-        b.ReportFormat = Clean(r.ReportFormat);
+        b.ReportFormatId = r.ReportFormatId;
+        b.PanelCode = Clean(r.PanelCode);
         b.IsActive = r.IsActive;
         SetRules(b, r.Rules);
     }

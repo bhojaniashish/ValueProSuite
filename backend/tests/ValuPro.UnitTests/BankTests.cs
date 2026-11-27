@@ -36,7 +36,7 @@ public class BankTests
     private static readonly BankRules Rules = new(RateBasis.BankRates, 70m, 90m, DepreciationMethod.StraightLine);
 
     private static SaveBankRequest Bank(string name, string code, string? ifsc = null) =>
-        new(name, code, "#2453A6", ifsc, "SBI VR-Format 3.2", true, Rules);
+        new(name, code, "#2453A6", ifsc, null, "PNL-77", true, Rules);
 
     private static SaveBranchRequest Branch(string name, string? ifsc = null, bool active = true) =>
         new(name, ifsc, "Surat", "Gujarat", null, "Branch Manager", "0261 245 6789", null, active);
@@ -136,4 +136,18 @@ public class BankTests
     public void Choice_question_needs_two_options() =>
         Assert.False(new UpdateQuestionnaireRequestValidator().Validate(new UpdateQuestionnaireRequest(
             [new QuestionItem("Marketability?", AnswerType.Choice, ["Good"], false)])).IsValid);
+
+    [Fact]
+    public async Task A_bank_links_to_one_of_the_firms_report_formats()
+    {
+        var bad = await _banks.CreateAsync(Bank("State Bank", "SBI") with { ReportFormatId = Guid.NewGuid() });
+        Assert.Equal("reportFormatId", bad.Error!.Field);
+
+        var format = new ValuPro.Domain.Reports.ReportFormat { Name = "SBI Format 3.2" };
+        _db.Add(format);
+        await _db.SaveChangesAsync();
+        var ok = (await _banks.CreateAsync(Bank("State Bank", "SBI") with { ReportFormatId = format.Id })).Value!;
+        Assert.Equal("SBI Format 3.2", ok.ReportFormatName);
+        Assert.Equal("PNL-77", ok.PanelCode);
+    }
 }

@@ -76,6 +76,7 @@ public class ReportServiceTests : IAsyncLifetime
     private Guid _valuer, _bank, _flat;
 
     private IReportService Svc => _scope.ServiceProvider.GetRequiredService<IReportService>();
+    private IReportFormatService Formats => _scope.ServiceProvider.GetRequiredService<IReportFormatService>();
     private AppDbContext Db => _scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
     public async Task InitializeAsync()
@@ -95,6 +96,7 @@ public class ReportServiceTests : IAsyncLifetime
         services.AddScoped<ISignatureService, SignatureService>();
         services.AddSingleton<IReportRenderer, DefaultReportTemplate>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IReportFormatService, ReportFormatService>();
         _sp = services.BuildServiceProvider();
         _scope = _sp.CreateScope();
 
@@ -326,5 +328,90 @@ public class ReportServiceTests : IAsyncLifetime
         Assert.False(v.Validate(new SendReportEmailRequest(Guid.NewGuid(), ["not-an-email"], null, "s", "m")).IsValid);
         Assert.False(v.Validate(new SendReportEmailRequest(Guid.NewGuid(), ["a@b.in"], ["bad"], "s", "m")).IsValid);
         Assert.True(v.Validate(new SendReportEmailRequest(Guid.NewGuid(), ["a@b.in"], ["c@d.in"], "s", "m")).IsValid);
+    }
+
+    private static SaveReportFormatRequest Format(string name, string? declaration = null) =>
+        new(name, null, "VALUATION REPORT (FORMAT 3.2)", "As per IBA format", "The Chief Manager", ReportLayout.Standard(), declaration,
+            "Valid for six months.\nNot a title certificate.", "Value as on {date}: {value}; realizable {realizable}.");
+
+    [Fact]
+    public async Task The_first_format_is_the_default_and_formats_in_use_cannot_be_deleted()
+    {
+        var a = (await Formats.CreateAsync(Format("SBI 3.2"))).Value!;
+        var b = (await Formats.CreateAsync(Format("HDFC Tech-Val"))).Value!;
+        Assert.True(a.IsDefault);
+        Assert.False(b.IsDefault);
+        Assert.Equal("name", (await Formats.CreateAsync(Format(" SBI 3.2 "))).Error!.Field);
+
+        var bank = await Db.Set<Bank>().SingleAsync(x => x.Id == _bank);
+        bank.ReportFormatId = b.Id;
+        await Db.SaveChangesAsync();
+        Assert.Contains("HDFC", (await Formats.DeleteAsync(b.Id)).Error!.Message);
+        Assert.Contains("default", (await Formats.DeleteAsync(a.Id)).Error!.Message);
+
+        Assert.True((await Formats.MakeDefaultAsync(b.Id)).Value!.IsDefault);
+        Assert.False((await Formats.GetAsync(a.Id)).Value!.IsDefault);
+        Assert.True((await Formats.DeleteAsync(a.Id)).Value);
+
+        var copy = (await Formats.DuplicateAsync(b.Id)).Value!;
+        Assert.Equal("HDFC Tech-Val (copy)", copy.Name);
+        Assert.Equal("The Chief Manager", copy.AddressTo);
+        Assert.Equal(["HDFC"], (await Formats.ListAsync()).Single(f => f.Id == b.Id).Banks);
+    }
+
+    [Fact]
+    public async Task A_report_uses_the_banks_format_and_its_declaration()
+    {
+        var id = await CaseAsync();
+        Assert.Null((await Svc.GetAsync(id)).Value!.FormatName); // no formats yet: the standard one
+
+        var f = (await Formats.CreateAsync(Format("HDFC Tech-Val", "I certify for {bank} that I inspected on {inspectionDate}. {valuer}"))).Value!;
+        var d = (await Svc.GetAsync(id)).Value!;
+        Assert.Equal("HDFC Tech-Val", d.FormatName); // the firm's default applies to banks without a format
+        Assert.Equal("I certify for HDFC Bank that I inspected on 24 Nov 2026. Sneha Kulkarni", d.Fields.Declaration);
+        Assert.True(d.Fields.DeclarationIsStandard); // not changed for this case
+
+        var draft = (await Svc.GenerateDraftAsync(id)).Value!;
+        Assert.Single(draft.Files);
+    }
+
+    [Fact]
+    public async Task A_preview_renders_the_unsaved_format_for_both_report_kinds()
+    {
+        var layout = ReportLayout.Standard();
+        layout.Sections.Reverse();
+        layout.Sections.First(s => s.Key == ReportSections.Documents).Include = false;
+        layout.Sections.First(s => s.Key == ReportSections.General).Title = "Particulars";
+        layout.NumberSections = false;
+        layout.ShowWorking = false;
+        layout.PhotoAnnexure = false;
+        var r = Format("Draft format") with { Layout = layout };
+        foreach (var stage in new[] { false, true })
+        {
+            var pdf = await Formats.PreviewAsync(r, stage);
+            Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+        }
+    }
+
+    [Fact]
+    public void Layouts_keep_every_section_once_and_placeholders_are_checked()
+    {
+        var l = new ReportLayout { Sections = [new() { Key = "valuation" }, new() { Key = "nonsense" }, new() { Key = "valuation", Include = false }] };
+        var n = l.Normalized();
+        Assert.Equal(ReportSections.All.Count, n.Count);
+        Assert.Equal("valuation", n[0].Key);
+        Assert.True(n[0].Include);
+
+        var v = new SaveReportFormatRequestValidator();
+        Assert.True(v.Validate(Format("ok")).IsValid);
+        var typo = v.Validate(Format("bad") with { OpinionWording = "Worth {vaule}" });
+        Assert.Contains(typo.Errors, e => e.ErrorMessage.Contains("{vaule}"));
+        var none = ReportLayout.Standard();
+        none.Sections.ForEach(s => s.Include = false);
+        Assert.False(v.Validate(Format("empty") with { Layout = none }).IsValid);
+
+        var parts = ReportFormatText.Fill("As on {date}, {value} ({x})", new Dictionary<string, string> { ["{date}"] = "1 Jan", ["{value}"] = "₹ 5" });
+        Assert.Equal("As on 1 Jan, ₹ 5 ({x})", string.Concat(parts.Select(p => p.Text)));
+        Assert.Equal(2, parts.Count(p => p.Value));
     }
 }

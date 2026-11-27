@@ -13,7 +13,8 @@ public sealed class BankConfiguration : IEntityTypeConfiguration<Bank>
         b.Property(x => x.ShortCode).HasMaxLength(10).IsRequired();
         b.Property(x => x.BrandColor).HasMaxLength(7);
         b.Property(x => x.IfscPrefix).HasMaxLength(4);
-        b.Property(x => x.ReportFormat).HasMaxLength(100);
+        b.Property(x => x.PanelCode).HasMaxLength(60);
+        b.HasOne<Domain.Reports.ReportFormat>().WithMany().HasForeignKey(x => x.ReportFormatId).OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.RateBasis).HasConversion<string>().HasMaxLength(20);
         b.Property(x => x.Depreciation).HasConversion<string>().HasMaxLength(20);
         b.Property(x => x.DistressPercent).HasPrecision(5, 2);

@@ -105,6 +105,11 @@ Other sidebar modules show which phase builds them.
   "Sent to the bank"); a sent email also goes on the case timeline. Needs Reports: Manage; PDFs over 18 MB are refused.
 - In development `Email:PickupDirectory` (appsettings.Development.json → `App_Data/mail`) writes every email as an `.eml`
   file instead of sending it, so nothing leaves the machine. Leave it unset in production.
+- **Report formats (bank templates):** Settings → Templates lists the firm's formats; each sets the title, subtitle,
+  "To" line, which sections print and in what order (with custom headings), which values the valuation shows, the
+  opinion line and declaration (with placeholders such as {date}, {value}, {bank}) and limiting conditions, with a live
+  sample preview. A bank picks its format (and empanelment no.) on the bank form; banks without one use the default
+  format, and with no formats the standard layout. Old free-text format names became formats in the migration.
 - Signatures are images for now (`SignatureMethod.Image`); Aadhaar eSign and DSC are planned as other methods.
 - **PDF library licence:** reports use QuestPDF under its Community licence, which is free only while the firm's annual
   gross revenue is under USD 1,000,000 (public-sector bodies and listed companies are not eligible). Buy a QuestPDF

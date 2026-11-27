@@ -24,6 +24,8 @@ export interface ReportDetail {
   readOnlyReason: string | null;
   caseType: 'Valuation' | 'StageInspection' | 'Reinspection'; recommendedRelease: number | null;
   emails: ReportEmailItem[]; canEmail: boolean; emailBlockedReason: string | null;
+  /** The bank's report format (null = the standard report). */
+  formatName: string | null;
 }
 
 export interface ReportEmailItem {

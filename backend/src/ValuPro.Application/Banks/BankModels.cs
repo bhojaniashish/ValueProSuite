@@ -10,7 +10,9 @@ public sealed record BankSummary(
     string ShortCode,
     string BrandColor,
     string? IfscPrefix,
-    string? ReportFormat,
+    Guid? ReportFormatId,
+    string? ReportFormatName,
+    string? PanelCode,
     bool IsActive,
     BankRules Rules,
     int Branches,
@@ -26,7 +28,8 @@ public sealed record SaveBankRequest(
     string ShortCode,
     string BrandColor,
     string? IfscPrefix,
-    string? ReportFormat,
+    Guid? ReportFormatId,
+    string? PanelCode,
     bool IsActive,
     BankRules Rules);
 

@@ -58,7 +58,10 @@ export interface Bank {
   shortCode: string;
   brandColor: string;
   ifscPrefix: string | null;
-  reportFormat: string | null;
+  reportFormatId: string | null;
+  /** Null = the firm's default format. */
+  reportFormatName: string | null;
+  panelCode: string | null;
   isActive: boolean;
   rules: BankRules;
   branches: number;
@@ -66,7 +69,7 @@ export interface Bank {
   questions: number;
 }
 
-export type SaveBank = Omit<Bank, 'id' | 'branches' | 'activeBranches' | 'questions'>;
+export type SaveBank = Omit<Bank, 'id' | 'branches' | 'activeBranches' | 'questions' | 'reportFormatName'>;
 
 export interface Question {
   text: string;

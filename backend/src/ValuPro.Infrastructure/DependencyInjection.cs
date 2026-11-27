@@ -129,6 +129,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Signatures.ISignatureService, Signatures.SignatureService>();
         services.AddSingleton<Application.Reports.IReportRenderer, Reports.DefaultReportTemplate>();
         services.AddScoped<Application.Reports.IReportService, Reports.ReportService>();
+        services.AddScoped<Application.Reports.IReportFormatService, Reports.ReportFormatService>();
 
         return services;
     }

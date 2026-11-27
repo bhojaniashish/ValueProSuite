@@ -56,7 +56,7 @@ import { Bank, BanksApi, rateBasisLabel } from './banks.api';
               <vp-bank-badge [code]="b.shortCode" [color]="b.brandColor" />
               <div class="name">
                 <b>{{ b.name }}</b>
-                <span class="small muted">{{ b.reportFormat || 'Standard Format' }}</span>
+                <span class="small muted">{{ b.reportFormatName || 'Firm default format' }}</span>
               </div>
               @if (!b.isActive) { <span class="badge b-gray">Inactive</span> }
             </a>

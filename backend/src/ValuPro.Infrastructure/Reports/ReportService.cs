@@ -112,7 +112,7 @@ public sealed partial class ReportService(
     // ---------------- detail ----------------
 
     private sealed record Loaded(CaseRow Row, Inspection? Inspection, Valuation? Valuation, CaseReport? Report, List<CaseDocument> Documents,
-        List<AssignmentPhoto> ReportPhotos, List<ReportFile> Files, bool ValuerHasSignature, List<ReportEmail> Emails, bool EmailReady);
+        List<AssignmentPhoto> ReportPhotos, List<ReportFile> Files, bool ValuerHasSignature, List<ReportEmail> Emails, bool EmailReady, ReportFormat? Format);
 
     private async Task<Loaded?> LoadAsync(Guid assignmentId, CancellationToken ct)
     {
@@ -129,7 +129,11 @@ public sealed partial class ReportService(
         var reportFiles = await db.Set<ReportFile>().AsNoTracking().Where(f => f.AssignmentId == assignmentId).OrderByDescending(f => f.Number).ToListAsync(ct);
         var hasSignature = await db.Users.AnyAsync(u => u.Id == row.A.ValuerId && u.SignatureBlobPath != null, ct);
         var emails = await db.Set<ReportEmail>().AsNoTracking().Where(e => e.AssignmentId == assignmentId).OrderByDescending(e => e.CreatedAt).ToListAsync(ct);
-        return new Loaded(row, inspection, valuation, report, docs, photos, reportFiles, hasSignature, emails, await email.IsReadyAsync(ct));
+        // The bank's own format, else the firm's default (none = the standard layout).
+        var format = row.Bank.ReportFormatId is { } fid
+            ? await db.Set<ReportFormat>().AsNoTracking().FirstOrDefaultAsync(f => f.Id == fid, ct)
+            : await db.Set<ReportFormat>().AsNoTracking().FirstOrDefaultAsync(f => f.IsDefault, ct);
+        return new Loaded(row, inspection, valuation, report, docs, photos, reportFiles, hasSignature, emails, await email.IsReadyAsync(ct), format);
     }
 
     private static List<ReportCheck> Checks(Loaded l)
@@ -160,7 +164,8 @@ public sealed partial class ReportService(
     {
         var r = l.Report;
         var inspected = InspectedOn(l);
-        var declaration = r?.Declaration ?? ReportText.DefaultDeclaration(inspected is { } d ? d.ToString("dd MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-IN")) : "the date of inspection");
+        var inspectedText = inspected is { } d ? d.ToString("dd MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-IN")) : "the date of inspection";
+        var declaration = r?.Declaration ?? ReportFormatText.Declaration(l.Format?.Declaration, inspectedText, l.Row.Bank.Name, l.Row.ValuerName);
         return new ReportFields(
             r?.ReportDate,
             r?.ValuationDate ?? inspected,
@@ -198,7 +203,7 @@ public sealed partial class ReportService(
             readOnly is null, generateBlocked is null, generateBlocked, approveBlocked is null, approveBlocked, readOnly,
             l.Row.A.CaseType, Construction(l.Row.A) && l.Valuation?.Input.Progress is { } pr ? ValuationCalculator.Progress(pr).RecommendedRelease : null,
             l.Emails.Select(e => new ReportEmailItem(e.Id, e.CreatedAt, e.To, e.Cc, e.Subject, e.ReportNumber, e.SentByName, e.Status, e.Error)).ToList(),
-            EmailBlockedReason(l) is null, EmailBlockedReason(l));
+            EmailBlockedReason(l) is null, EmailBlockedReason(l), l.Format?.Name);
     }
 
     public async Task<Result<ReportDetail>> GetAsync(Guid assignmentId, CancellationToken ct = default) =>
@@ -313,7 +318,8 @@ public sealed partial class ReportService(
         var fields = Fields(l);
 
         var photos = new List<PhotoBlock>();
-        foreach (var ph in l.ReportPhotos.Take(MaxPhotos))
+        var format = ReportFormatView.From(l.Format);
+        foreach (var ph in format.Layout.PhotoAnnexure ? l.ReportPhotos.Take(MaxPhotos) : [])
             if (await ReadAsync(ph.BlobPath, ct) is { } bytes)
                 photos.Add(new PhotoBlock(photos.Count + 1, InspectionRules.Label(ph.Tag), ph.Caption, ph.TakenAt, ph.Latitude, ph.Longitude, bytes));
 
@@ -337,7 +343,7 @@ public sealed partial class ReportService(
             l.Documents.Select(x => new DocumentRow(x.Title ?? DocumentRules.Label(x.Type), x.Availability, x.Number, x.IssuedOn, x.IssuedBy, x.Notes)).ToList(),
             valuation.Input, ValuationCalculator.Calculate(valuation.Input),
             photos, fields.PhotosPerPage, fields.Opinion, fields.Declaration, fields.Place, signer, approvedBy,
-            a.CaseType, previous?.Number, previous?.Percent, previous?.On);
+            a.CaseType, previous?.Number, previous?.Percent, previous?.On, format, row.Bank.PanelCode);
     }
 
     private sealed record PreviousVisit(string Number, decimal? Percent, DateOnly? On);

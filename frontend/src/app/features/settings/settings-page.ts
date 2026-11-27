@@ -10,6 +10,7 @@ import { CommunicationSection } from './communication-section';
 import { CompanySection } from './company-section';
 import { GstSection } from './gst-section';
 import { NotificationsSection } from './notifications-section';
+import { ReportFormatsSection } from '../report-formats/report-formats-section';
 import { Settings, SettingsApi } from './settings.api';
 
 type Tab = 'company' | 'branding' | 'communication' | 'gst' | 'templates' | 'notifications';
@@ -25,7 +26,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 @Component({
   selector: 'vp-settings-page',
-  imports: [CompanySection, BrandingSection, CommunicationSection, GstSection, NotificationsSection],
+  imports: [CompanySection, BrandingSection, CommunicationSection, GstSection, NotificationsSection, ReportFormatsSection],
   template: `
     <div class="page-head">
       <div>
@@ -52,13 +53,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
         @case ('communication') { <vp-communication-section [value]="s.communication" [canEdit]="canEdit()" (saved)="patch({ communication: $event })" /> }
         @case ('gst') { <vp-gst-section [value]="s.gst" [canEdit]="canEdit()" (saved)="patch({ gst: $event })" /> }
         @case ('notifications') { <vp-notifications-section [value]="s.notifications" [canEdit]="canEdit()" (saved)="patch({ notifications: $event })" /> }
-        @case ('templates') {
-          <div class="card later">
-            <span class="ic"><i class="fa-solid fa-file-lines"></i></span>
-            <h3>Report templates arrive in Phase 3</h3>
-            <p>One default template per report type comes first; bank formats (SBI, HDFC and others) are added as templates when valuers share them.</p>
-          </div>
-        }
+        @case ('templates') { <vp-report-formats-section [canEdit]="canEdit()" /> }
       }
     } @else {
       <div class="card card-pad muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading settings…</div>
@@ -73,11 +68,6 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
       font-size: 13.5px; font-weight: 600; color: var(--muted); white-space: nowrap; }
     .tabs button:hover { color: var(--brand); background: var(--bg-2); }
     .tabs button.active { color: #fff; background: var(--brand); }
-    .later { padding: 40px 24px; text-align: center; }
-    .later .ic { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 14px;
-      background: var(--gold-soft); color: var(--gold); font-size: 22px; }
-    .later h3 { margin: 14px 0 6px; }
-    .later p { max-width: 460px; margin: 0 auto; color: var(--muted); line-height: 1.6; }
   `,
 })
 export class SettingsPage implements OnInit {

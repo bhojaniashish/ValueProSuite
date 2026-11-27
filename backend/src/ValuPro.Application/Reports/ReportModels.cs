@@ -34,7 +34,7 @@ public sealed record ReportDetail(
     IReadOnlyList<ReportCheck> Checks, ReportFields Fields, IReadOnlyList<ReportFileItem> Files,
     bool CanEdit, bool CanGenerate, string? GenerateBlockedReason, bool CanApprove, string? ApproveBlockedReason, string? ReadOnlyReason,
     CaseType CaseType = CaseType.Valuation, decimal? RecommendedRelease = null,
-    IReadOnlyList<ReportEmailItem>? Emails = null, bool CanEmail = false, string? EmailBlockedReason = null);
+    IReadOnlyList<ReportEmailItem>? Emails = null, bool CanEmail = false, string? EmailBlockedReason = null, string? FormatName = null);
 
 /// <summary>One email of the report to the bank (sent or failed).</summary>
 public sealed record ReportEmailItem(Guid Id, DateTimeOffset At, string To, string? Cc, string Subject, int ReportNumber, string SentByName,
@@ -129,7 +129,9 @@ public sealed record ReportModel(
     CaseType CaseType = CaseType.Valuation,
     string? PreviousNumber = null,
     decimal? PreviousPercent = null,
-    DateOnly? PreviousDate = null);
+    DateOnly? PreviousDate = null,
+    ReportFormatView? Format = null,
+    string? PanelCode = null);
 
 /// <summary>Turns a report model into a PDF. One default template now; bank-specific templates later.</summary>
 public interface IReportRenderer

@@ -14,6 +14,7 @@
       </div>
       <b>{{ d.applicantName }}</b>
       <span class="small muted">{{ d.propertySummary }} · Valuer {{ d.valuerName }}@if (d.reviewerName) { · Reviewer {{ d.reviewerName }} }</span>
+      <span class="small muted"><i class="fa-solid fa-file-lines"></i> {{ d.formatName ?? 'Standard report' }}</span>
     </div>
     @if (d.recommendedRelease != null) {
       <div class="fmv"><span class="small muted">Release recommended</span><b class="tnum">{{ inr(d.recommendedRelease) }}</b></div>

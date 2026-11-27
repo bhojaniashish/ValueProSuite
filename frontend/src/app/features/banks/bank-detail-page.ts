@@ -25,7 +25,7 @@ import { QuestionnaireEditor } from './questionnaire-editor';
         <vp-bank-badge [code]="d.bank.shortCode" [color]="d.bank.brandColor" style="--size: 56px" />
         <div class="title">
           <h2>{{ d.bank.name }} @if (!d.bank.isActive) { <span class="badge b-gray">Inactive</span> }</h2>
-          <p class="muted">{{ d.bank.reportFormat || 'Standard Format' }}{{ d.bank.ifscPrefix ? ' · IFSC ' + d.bank.ifscPrefix + '…' : '' }}</p>
+          <p class="muted">{{ d.bank.reportFormatName || 'Firm default format' }}{{ d.bank.panelCode ? ' · Panel ' + d.bank.panelCode : '' }}{{ d.bank.ifscPrefix ? ' · IFSC ' + d.bank.ifscPrefix + '…' : '' }}</p>
         </div>
         @if (canManage()) {
           <div class="actions">

@@ -111,6 +111,13 @@ export const routes: Routes = [
             loadComponent: () => import('./features/valuations/valuation-page').then((m) => m.ValuationPage),
           },
           {
+            path: 'settings/report-formats/:id',
+            title: 'Report format · ValuPro',
+            canActivate: [permissionGuard],
+            data: { permission: Permission.settingsView },
+            loadComponent: () => import('./features/report-formats/report-format-editor').then((m) => m.ReportFormatEditor),
+          },
+          {
             path: 'reports/:id',
             title: 'Report · ValuPro',
             canActivate: [permissionGuard],
