@@ -22,7 +22,7 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: 'Overview',
     items: [
-      { path: 'dashboard', label: 'Dashboard', icon: 'fa-gauge-high', permission: Permission.dashboardView, phase: 4, summary: 'KPIs, status and bank-wise charts, revenue trend, today’s tasks.' },
+      { path: 'dashboard', label: 'Dashboard', icon: 'fa-gauge-high', permission: Permission.dashboardView, phase: 4, ready: true, summary: 'KPIs, status and bank-wise charts, revenue trend, today’s tasks.' },
       { path: 'calendar', label: 'Calendar', icon: 'fa-calendar-days', permission: Permission.assignmentsView, phase: 4, summary: 'Site visit scheduling, reminders, month/week/day views.' },
     ],
   },
@@ -50,7 +50,7 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: 'Finance & Admin',
     items: [
-      { path: 'billing', label: 'Billing', icon: 'fa-file-invoice-dollar', permission: Permission.billingView, phase: 4, summary: 'GST invoices, payments and outstanding report.' },
+      { path: 'billing', label: 'Billing', icon: 'fa-file-invoice-dollar', permission: Permission.billingView, phase: 4, ready: true, summary: 'GST invoices, payments and outstanding report.' },
       { path: 'users', label: 'User Management', icon: 'fa-user-shield', permission: Permission.usersView, phase: 1, ready: true, summary: 'Users, roles and the role × module permission matrix.' },
       { path: 'settings', label: 'Settings', icon: 'fa-gear', permission: Permission.settingsView, phase: 1, ready: true, summary: 'Firm profile, branding, numbering, email and SMS.' },
     ],

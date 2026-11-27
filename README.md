@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 4 in progress** (Phases 0–3 done; Billing built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 4 in progress** (Phases 0–3 done; Billing and Dashboard built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -49,6 +49,12 @@ STAGE INSPECTION / RE-INSPECTION REPORT with the stage table and a disbursement 
 **Billing** (Phase 4): GST tax invoices for submitted cases (one or several of a bank's cases per invoice), billed to the
 bank branch or the client, with CGST + SGST or IGST by state, SAC code, round-off and the amount in words; payments with
 TDS; outstanding, overdue, collected and unbilled figures for the financial year and by bank; invoice PDF.
+
+**Dashboard** (Phase 4): the day at a glance for everyone or just your own cases: open, overdue, due-this-week and
+submitted-this-month counts; cases that need attention (late, due within 3 days, or waiting on your review); site visits
+for the next 7 days; the pipeline by stage; open cases by bank; team workload per valuer; six months of cases received vs
+submitted with fees; recent activity; and, for billing users, invoiced, collected, outstanding and ready-to-bill figures.
+Every figure links to the filtered assignment or billing list. Users without the dashboard permission see their module tiles.
 Other sidebar modules show which phase builds them.
 
 ## Site inspection rules

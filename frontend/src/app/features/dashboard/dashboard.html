@@ -1,24 +1,266 @@
-<section class="welcome">
-  <div>
-    <h2>Welcome, {{ firstName() }}</h2>
-    <p>
-      Signed in to <strong>{{ auth.user()?.tenantName }}</strong> as {{ auth.user()?.roles?.join(', ') }}
-      · {{ auth.user()?.permissions?.length }} permissions
-    </p>
+@if (!canView()) {
+  <section class="welcome">
+    <div>
+      <h2>Welcome, {{ firstName() }}</h2>
+      <p>Signed in to <strong>{{ auth.user()?.tenantName }}</strong> as {{ auth.user()?.roles?.join(', ') }}</p>
+    </div>
+  </section>
+  <h3 class="mods">Your modules</h3>
+  <div class="tiles">
+    @for (m of modules(); track m.path) {
+      <a class="tile" [routerLink]="['/', m.path]">
+        <span class="icon"><i class="fa-solid" [class]="m.icon"></i></span>
+        <span class="text"><span class="name">{{ m.label }}</span><span class="summary">{{ m.summary }}</span></span>
+      </a>
+    }
   </div>
-  <span class="badge">Phase 1 · Masters + Assignments</span>
-</section>
+} @else {
+  <div class="page-head">
+    <div>
+      <h2>{{ greeting() }}, {{ firstName() }}</h2>
+      <p>{{ todayLabel() || 'Here is the day at a glance.' }}</p>
+    </div>
+    <div class="head-acts">
+      <div class="seg" role="group" aria-label="Whose cases">
+        <button type="button" [class.on]="scope() === 'all'" [attr.aria-pressed]="scope() === 'all'" (click)="setScope('all')">Everyone</button>
+        <button type="button" [class.on]="scope() === 'mine'" [attr.aria-pressed]="scope() === 'mine'" (click)="setScope('mine')">My cases</button>
+      </div>
+      @if (canCreate()) {
+        <a class="btn btn-pri" routerLink="/assignments" [queryParams]="{ new: 1 }"><i class="fa-solid fa-plus"></i> New assignment</a>
+      }
+    </div>
+  </div>
 
-<h3>Your modules</h3>
-<div class="grid">
-  @for (m of modules(); track m.path) {
-    <a class="tile" [routerLink]="['/', m.path]">
-      <span class="icon"><i class="fa-solid" [class]="m.icon"></i></span>
-      <span class="text">
-        <span class="name">{{ m.label }}</span>
-        <span class="summary">{{ m.summary }}</span>
-      </span>
-      @if (m.ready) { <span class="phase live">Live</span> } @else { <span class="phase">P{{ m.phase }}</span> }
-    </a>
+  @if (error(); as e) {
+    <div class="card empty">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <b>Could not load the dashboard</b>
+      <span>{{ e }}</span>
+      <button class="btn btn-ghost" type="button" (click)="load()">Try again</button>
+    </div>
+  } @else if (data(); as d) {
+    <div class="stats" [class.dim]="loading()">
+      <a class="card stat" routerLink="/assignments" [queryParams]="listParams({ open: '1' })">
+        <span class="ic b-brand"><i class="fa-solid fa-clipboard-list"></i></span>
+        <div><b class="tnum">{{ d.kpis.open }}</b><span>Open cases · {{ d.kpis.receivedThisMonth }} received this month</span></div>
+      </a>
+      <a class="card stat" routerLink="/assignments" [queryParams]="listParams({ overdue: '1' })" [class.alarm]="d.kpis.overdue > 0">
+        <span class="ic" [class]="d.kpis.overdue ? 'b-danger' : 'b-gray'"><i class="fa-solid fa-triangle-exclamation"></i></span>
+        <div><b class="tnum">{{ d.kpis.overdue }}</b><span>Overdue · past the bank's due date</span></div>
+      </a>
+      <a class="card stat" routerLink="/assignments" [queryParams]="listParams({ open: '1' })">
+        <span class="ic b-warn"><i class="fa-solid fa-hourglass-half"></i></span>
+        <div><b class="tnum">{{ d.kpis.dueThisWeek }}</b><span>Due in 7 days · {{ d.kpis.visitsToday }} visit{{ d.kpis.visitsToday === 1 ? '' : 's' }} today</span></div>
+      </a>
+      <a class="card stat" routerLink="/assignments" [queryParams]="listParams({ status: 'Submitted' })">
+        <span class="ic b-ok"><i class="fa-solid fa-paper-plane"></i></span>
+        <div>
+          <b class="tnum">{{ d.kpis.completedThisMonth }}</b>
+          <span>
+            Submitted this month
+            @if (completedDelta() > 0) { · <em class="up">▲ {{ completedDelta() }}</em> }
+            @else if (completedDelta() < 0) { · <em class="down">▼ {{ -completedDelta() }}</em> }
+            vs last
+          </span>
+        </div>
+      </a>
+    </div>
+
+    @if (d.money; as m) {
+      <div class="card money" [class.dim]="loading()">
+        <a routerLink="/billing">
+          <span class="small muted">Invoiced this month</span><b class="tnum">{{ short(m.invoicedThisMonth) }}</b>
+        </a>
+        <a routerLink="/billing">
+          <span class="small muted">Collected this month</span><b class="tnum ok">{{ short(m.collectedThisMonth) }}</b>
+        </a>
+        <a routerLink="/billing">
+          <span class="small muted">Outstanding</span><b class="tnum">{{ short(m.outstanding) }}</b>
+          @if (m.overdue) { <span class="small od">{{ short(m.overdue) }} overdue · {{ m.overdueInvoices }} inv.</span> }
+        </a>
+        <a routerLink="/billing" [queryParams]="{ view: 'unbilled' }">
+          <span class="small muted">Ready to bill</span><b class="tnum">{{ m.toBillCount }} case{{ m.toBillCount === 1 ? '' : 's' }}</b>
+          @if (m.toBillFees) { <span class="small muted">{{ short(m.toBillFees) }} in fees</span> }
+        </a>
+      </div>
+    }
+
+    <div class="row r-main" [class.dim]="loading()">
+      <section class="card">
+        <div class="card-head">
+          <h3>Needs attention</h3>
+          <span class="sub">late, due within 3 days, or waiting on your review</span>
+        </div>
+        @if (d.attention.length) {
+          <ul class="cases">
+            @for (a of d.attention; track a.id) {
+              <li>
+                <a [routerLink]="['/assignments', a.id]">
+                  <span class="bank" [style.background]="a.bankColor">{{ a.bankShortCode }}</span>
+                  <span class="main">
+                    <span class="l1">
+                      <b class="num">{{ a.number }}</b>
+                      <span class="badge" [class]="meta(a.status).badge">{{ meta(a.status).label }}</span>
+                      @if (a.caseType !== 'Valuation') { <span class="badge b-gray">{{ caseType(a.caseType) }}</span> }
+                    </span>
+                    <span class="l2">{{ a.applicantName }} · {{ a.propertySummary }}</span>
+                    @if (d.mine === false) { <span class="small muted">{{ a.valuerName }}</span> }
+                  </span>
+                  <span class="when">
+                    <span class="badge" [class]="reasonBadge(a.reason)">{{ reasonText(a.reason, a.days) }}</span>
+                    <span class="small muted">Due {{ date(a.dueDate) }}</span>
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        } @else {
+          <div class="calm"><i class="fa-solid fa-mug-hot"></i><span>Nothing late or due in the next 3 days.</span></div>
+        }
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>Site visits</h3>
+          <span class="sub">next 7 days</span>
+        </div>
+        @if (d.visits.length) {
+          <ul class="visits">
+            @for (v of d.visits; track v.id) {
+              <li>
+                <a [routerLink]="['/assignments', v.id]">
+                  <span class="cal">
+                    <b>{{ visitDay(v.at) }}</b>
+                    <span>{{ visitTime(v.at) }}</span>
+                  </span>
+                  <span class="main">
+                    <span class="l1"><b class="num">{{ v.number }}</b><span class="bank sm" [style.background]="v.bankColor">{{ v.bankShortCode }}</span></span>
+                    <span class="l2">{{ v.propertySummary }}</span>
+                    <span class="small muted">{{ v.applicantName }}@if (d.mine === false) { · {{ v.valuerName }} }</span>
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        } @else {
+          <div class="calm"><i class="fa-regular fa-calendar"></i><span>No site visits booked for the coming week.</span></div>
+        }
+      </section>
+    </div>
+
+    <section class="card pipe" [class.dim]="loading()">
+      <div class="card-head">
+        <h3>Pipeline</h3>
+        <span class="sub">{{ pipeline().total }} case{{ pipeline().total === 1 ? '' : 's' }} from new to submitted</span>
+      </div>
+      @if (pipeline().total) {
+        <div class="bar" role="img" [attr.aria-label]="'Cases by stage'">
+          @for (s of pipeline().stages; track s.status) {
+            @if (s.count) { <span [style.width.%]="s.pct" [style.background]="statusColor(s.status)" [title]="meta(s.status).label + ': ' + s.count"></span> }
+          }
+        </div>
+      }
+      <div class="stages">
+        @for (s of pipeline().stages; track s.status) {
+          <a routerLink="/assignments" [queryParams]="listParams({ status: s.status })" [class.zero]="!s.count">
+            <i class="dot" [style.background]="statusColor(s.status)"></i>
+            <span class="nm">{{ meta(s.status).label }}</span>
+            <b class="tnum">{{ s.count }}</b>
+          </a>
+        }
+      </div>
+    </section>
+
+    <div class="row r-insight" [class.dim]="loading()">
+      <section class="card trend">
+        <div class="card-head">
+          <h3>Last 6 months</h3>
+          <span class="sub">{{ short(trendFees()) }} in fees on submitted cases</span>
+        </div>
+        <div class="bars" role="img" aria-label="Cases received and submitted by month">
+          @for (m of d.trend; track m.month) {
+            <div class="mon" [title]="m.month + ': ' + m.received + ' received, ' + m.completed + ' submitted, ' + short(m.fees) + ' fees'">
+              <div class="pair">
+                <span class="b rec" [style.height.%]="pct(m.received, trendMax())"></span>
+                <span class="b done" [style.height.%]="pct(m.completed, trendMax())"></span>
+              </div>
+              <span class="small muted">{{ m.month }}</span>
+            </div>
+          }
+        </div>
+        <div class="legend small muted"><span><i class="dot rec"></i> Received</span><span><i class="dot done"></i> Submitted to bank</span></div>
+      </section>
+
+      <section class="card list">
+        <div class="card-head"><h3>Open cases by bank</h3></div>
+        @if (d.byBank.length) {
+          <ul>
+            @for (b of d.byBank; track b.bankId) {
+              <li>
+                <a routerLink="/assignments" [queryParams]="listParams({ bank: b.bankId, open: '1' })">
+                  <span class="bank" [style.background]="b.color">{{ b.shortCode }}</span>
+                  <span class="nm">
+                    {{ b.name }}
+                    <span class="meter"><span [style.width.%]="pct(b.open, bankMax())" [style.background]="b.color"></span></span>
+                  </span>
+                  <span class="cnt">
+                    <b class="tnum">{{ b.open }}</b>
+                    @if (b.overdue) { <span class="small od">{{ b.overdue }} late</span> }
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="small muted none">No open cases.</p>
+        }
+      </section>
+    </div>
+
+    <div class="row" [class.r-two]="d.workload.length" [class.dim]="loading()">
+      @if (d.workload.length) {
+        <section class="card list">
+          <div class="card-head"><h3>Team workload</h3><span class="sub">open cases per valuer</span></div>
+          <ul>
+            @for (w of d.workload; track w.userId) {
+              <li>
+                <div class="person">
+                  <span class="av" [style.background]="avatarColor(w.name)">{{ initials(w.name) }}</span>
+                  <span class="nm">
+                    {{ w.name }}
+                    <span class="meter"><span [style.width.%]="pct(w.open, workMax())"></span></span>
+                  </span>
+                  <span class="cnt">
+                    <b class="tnum">{{ w.open }}</b>
+                    <span class="small muted">@if (w.overdue) { <span class="od">{{ w.overdue }} late</span> · } {{ w.dueThisWeek }} this week</span>
+                  </span>
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <section class="card">
+        <div class="card-head"><h3>Recent activity</h3></div>
+        @if (d.activity.length) {
+          <ul class="feed">
+            @for (e of d.activity; track $index) {
+              <li>
+                <span class="ic" [class]="meta(e.toStatus).badge"><i class="fa-solid" [class]="meta(e.toStatus).icon"></i></span>
+                <span class="main">
+                  <span><a class="num" [routerLink]="['/assignments', e.assignmentId]">{{ e.number }}</a> {{ e.title }}</span>
+                  <span class="small muted">{{ e.byName }} · {{ ago(e.at) }}</span>
+                </span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="small muted none">No activity yet.</p>
+        }
+      </section>
+    </div>
+  } @else {
+    <div class="card empty"><i class="fa-solid fa-spinner fa-spin"></i><span>Loading the dashboard…</span></div>
   }
-</div>
+}

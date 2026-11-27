@@ -31,10 +31,14 @@ export class AssignmentsPage implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   protected readonly router = inject(Router);
 
-  /** ?new=1 opens the form; ?property=<id> pre-selects a property; ?status=… filters. */
+  /** ?new=1 opens the form; ?property=<id> pre-selects a property; ?status=…, ?bank=<id>, ?mine=1, ?overdue=1 and ?open=1 filter. */
   readonly new = input<string>();
   readonly property = input<string>();
   readonly status = input<string>();
+  readonly bank = input<string>();
+  readonly mine = input<string>();
+  readonly overdue = input<string>();
+  readonly open = input<string>();
 
   protected readonly stages = STAGES;
   protected readonly priorities = PRIORITIES;
@@ -84,6 +88,10 @@ export class AssignmentsPage implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     const status = this.status();
     if (status && (STAGES as string[]).concat('Cancelled').includes(status)) this.query.update((q) => ({ ...q, status: status as AssignmentStatus }));
+    const on = (v: string | undefined) => v === '1' || v === 'true';
+    this.query.update((q) => ({
+      ...q, bankId: this.bank() || q.bankId, mine: on(this.mine()) || q.mine, overdue: on(this.overdue()) || q.overdue, openOnly: on(this.open()) || q.openOnly,
+    }));
     if (this.new()) {
       this.presetProperty.set(this.property() ?? null);
       this.creating.set(true);
