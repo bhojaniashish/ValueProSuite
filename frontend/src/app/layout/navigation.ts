@@ -23,7 +23,7 @@ export const NAVIGATION: NavGroup[] = [
     label: 'Overview',
     items: [
       { path: 'dashboard', label: 'Dashboard', icon: 'fa-gauge-high', permission: Permission.dashboardView, phase: 4, ready: true, summary: 'KPIs, status and bank-wise charts, revenue trend, today’s tasks.' },
-      { path: 'calendar', label: 'Calendar', icon: 'fa-calendar-days', permission: Permission.assignmentsView, phase: 4, summary: 'Site visit scheduling, reminders, month/week/day views.' },
+      { path: 'calendar', label: 'Calendar', icon: 'fa-calendar-days', permission: Permission.assignmentsView, phase: 4, ready: true, summary: 'Site visits, report due dates, payments due and follow-ups; month, week and list views.' },
     ],
   },
   {

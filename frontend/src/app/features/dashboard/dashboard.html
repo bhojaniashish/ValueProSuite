@@ -123,6 +123,7 @@
         <div class="card-head">
           <h3>Site visits</h3>
           <span class="sub">next 7 days</span>
+          @if (canAssignments()) { <a class="ml link" routerLink="/calendar">Calendar <i class="fa-solid fa-arrow-right"></i></a> }
         </div>
         @if (d.visits.length) {
           <ul class="visits">

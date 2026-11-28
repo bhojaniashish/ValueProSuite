@@ -3,7 +3,7 @@
 Property valuation management for valuation firms: assignments, site inspection, valuation, reports and billing.
 .NET 10 API + Angular 22 frontend, hosted on Azure. Built in phases. See the *ValuPro Development Plan* doc.
 
-**Status: Phase 4 in progress** (Phases 0–3 done; Billing and Dashboard built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
+**Status: Phase 4 in progress** (Phases 0–3 done; Billing, Dashboard and Calendar built). Done: Phase 0 foundation (sign-in, tenant-ready data layer, app shell) and
 **User Management**: user list with search/filters/paging, add/edit with status (Active / On Leave / Inactive),
 temporary passwords with forced change at first sign-in, password reset, and the editable role × module
 permission matrix. **Settings**: company profile, branding (logo, report watermark, colours that restyle the
@@ -55,6 +55,10 @@ submitted-this-month counts; cases that need attention (late, due within 3 days,
 for the next 7 days; the pipeline by stage; open cases by bank; team workload per valuer; six months of cases received vs
 submitted with fees; recent activity; and, for billing users, invoiced, collected, outstanding and ready-to-bill figures.
 Every figure links to the filtered assignment or billing list. Users without the dashboard permission see their module tiles.
+
+**Calendar** (Phase 4): site visits, report due dates, payments due (billing users) and hand-made follow-ups, reminders
+and meetings, in month, week and list views, for everyone or just you. Book a visit for a new case (it moves to Site Visit
+Scheduled) or move a booked one, from a dialog or by dragging it to another day; moves are logged on the case timeline.
 Other sidebar modules show which phase builds them.
 
 ## Site inspection rules

@@ -133,6 +133,7 @@ public static class DependencyInjection
         services.AddSingleton<Application.Billing.IInvoiceRenderer, Billing.InvoiceTemplate>();
         services.AddScoped<Application.Billing.IBillingService, Billing.BillingService>();
         services.AddScoped<Application.Dashboard.IDashboardService, Dashboard.DashboardService>();
+        services.AddScoped<Application.Calendar.ICalendarService, Calendar.CalendarService>();
 
         return services;
     }

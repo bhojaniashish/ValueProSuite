@@ -1,0 +1,182 @@
+<div class="page-head">
+  <div>
+    <h2>Calendar</h2>
+    <p>Site visits, report due dates, payments due, and the follow-ups you add.</p>
+  </div>
+  <div class="head-acts">
+    <div class="seg" role="group" aria-label="Whose calendar">
+      <button type="button" [class.on]="scope() === 'all'" [attr.aria-pressed]="scope() === 'all'" (click)="setScope('all')">Everyone</button>
+      <button type="button" [class.on]="scope() === 'mine'" [attr.aria-pressed]="scope() === 'mine'" (click)="setScope('mine')">Mine</button>
+    </div>
+    <button class="btn btn-pri" type="button" (click)="newEntry()"><i class="fa-solid fa-plus"></i> Add entry</button>
+  </div>
+</div>
+
+<div class="layout">
+  <section class="card cal">
+    <div class="bar">
+      <div class="nav">
+        <button class="btn btn-icon" type="button" (click)="step(-1)" [attr.aria-label]="view() === 'week' ? 'Previous week' : 'Previous month'"><i class="fa-solid fa-chevron-left"></i></button>
+        <h3>{{ title() }}</h3>
+        <button class="btn btn-icon" type="button" (click)="step(1)" [attr.aria-label]="view() === 'week' ? 'Next week' : 'Next month'"><i class="fa-solid fa-chevron-right"></i></button>
+        <button class="btn btn-ghost btn-sm" type="button" (click)="goToday()">Today</button>
+        @if (loading()) { <i class="fa-solid fa-spinner fa-spin muted"></i> }
+      </div>
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" [class.on]="view() === 'month'" (click)="setView('month')">Month</button>
+        <button type="button" [class.on]="view() === 'week'" (click)="setView('week')">Week</button>
+        <button type="button" [class.on]="view() === 'list'" (click)="setView('list')">List</button>
+      </div>
+    </div>
+    <div class="layers" role="group" aria-label="Show on the calendar">
+      @for (l of layerList(); track l.kind) {
+        <button type="button" class="layer" [class.off]="hidden().has(l.kind)" [attr.aria-pressed]="!hidden().has(l.kind)" (click)="toggleLayer(l.kind)">
+          <i class="dot" [class]="l.badge"></i> {{ l.label }} <span class="n">{{ counts()[l.kind] }}</span>
+        </button>
+      }
+    </div>
+
+    @if (error(); as e) {
+      <div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><b>Could not load the calendar</b><span>{{ e }}</span>
+        <button class="btn btn-ghost" type="button" (click)="reload()">Try again</button></div>
+    } @else if (view() === 'month') {
+      <div class="month" [class.dim]="loading() && !feed()">
+        @for (w of weekdays; track w) { <div class="dow">{{ w }}</div> }
+        @for (d of days(); track d.date) {
+          <div class="cell" [class.out]="!d.inMonth" [class.sun]="d.weekend" [class.today]="d.date === today()" [class.sel]="d.date === selected()"
+            [class.drop]="dropDay() === d.date" (click)="pick(d.date)" (dblclick)="newEntry(d.date)"
+            (dragover)="dragOver($event, d.date)" (dragleave)="dropDay.set(null)" (drop)="drop($event, d.date)">
+            <span class="dn">{{ dayNumber(d.date) }}</span>
+            @for (i of d.items.slice(0, 3); track i.key) {
+              <button type="button" class="ev" [class]="badge(i)" [class.done]="i.done" [class.late]="i.overdue" [draggable]="i.canMove"
+                (dragstart)="dragStart($event, i)" (dragend)="dragEnd()" (click)="$event.stopPropagation(); open(i)" [title]="kindLabel(i) + ': ' + i.title">
+                {{ chip(i) }}
+              </button>
+            }
+            @if (d.items.length > 3) { <span class="more">+{{ d.items.length - 3 }} more</span> }
+            @if (d.items.length) { <span class="dots">@for (i of d.items.slice(0, 4); track i.key) { <i [class]="badge(i)"></i> }</span> }
+          </div>
+        }
+      </div>
+    } @else if (view() === 'week') {
+      <div class="week">
+        @for (d of days(); track d.date) {
+          <div class="col" [class.today]="d.date === today()" [class.sel]="d.date === selected()" [class.drop]="dropDay() === d.date"
+            (click)="pick(d.date)" (dragover)="dragOver($event, d.date)" (dragleave)="dropDay.set(null)" (drop)="drop($event, d.date)">
+            <div class="wh"><span>{{ weekdays[$index] }}</span><b>{{ dayNumber(d.date) }}</b></div>
+            @for (i of d.items; track i.key) {
+              <button type="button" class="wev" [class]="badge(i)" [class.done]="i.done" [class.late]="i.overdue" [draggable]="i.canMove"
+                (dragstart)="dragStart($event, i)" (dragend)="dragEnd()" (click)="$event.stopPropagation(); open(i)">
+                <span class="t">{{ i.time ? clock(i.time) : kindLabel(i) }}</span>
+                <b>{{ i.assignmentNumber ?? i.title }}</b>
+                @if (i.assignmentNumber) { <span>{{ i.title }}</span> }
+              </button>
+            } @empty {
+              <span class="free">—</span>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="agenda">
+        @for (d of listDays(); track d.date) {
+          <div class="aday" [class.today]="d.date === today()">
+            <button type="button" class="ad" (click)="pick(d.date)">
+              <b>{{ dayNumber(d.date) }}</b><span>{{ d.date === today() ? 'Today' : label(d.date, { weekday: 'short' }) }}</span>
+            </button>
+            <ul>
+              @for (i of d.items; track i.key) {
+                <li>
+                  <ng-container *ngTemplateOutlet="row; context: { $implicit: i }" />
+                </li>
+              }
+            </ul>
+          </div>
+        } @empty {
+          <div class="empty"><i class="fa-regular fa-calendar"></i><span>Nothing on the calendar this month.</span></div>
+        }
+      </div>
+    }
+  </section>
+
+  <aside class="side">
+    <section class="card day">
+      <div class="card-head">
+        <h3>{{ selected() === today() ? 'Today' : selectedLabel() }}</h3>
+        @if (selected() === today()) { <span class="sub">{{ selectedLabel() }}</span> }
+        <button class="btn btn-ghost btn-sm ml" type="button" (click)="newEntry()"><i class="fa-solid fa-plus"></i> Add</button>
+      </div>
+      @if (dayItems().length) {
+        <ul class="items">
+          @for (i of dayItems(); track i.key) {
+            <li><ng-container *ngTemplateOutlet="row; context: { $implicit: i }" /></li>
+          }
+        </ul>
+      } @else {
+        <p class="small muted none">Nothing on this day.</p>
+      }
+    </section>
+
+    @if (feed()?.toSchedule?.length) {
+      <section class="card waiting">
+        <div class="card-head"><h3>Needs a site visit</h3><span class="sub">{{ feed()!.toSchedule.length }} new case{{ feed()!.toSchedule.length === 1 ? '' : 's' }}</span></div>
+        <ul>
+          @for (c of feed()!.toSchedule; track c.id) {
+            <li>
+              <span class="bank" [style.background]="c.bankColor">{{ c.bankShortCode }}</span>
+              <span class="main">
+                <a class="num" [routerLink]="['/assignments', c.id]">{{ c.number }}</a>
+                <span class="l2">{{ c.propertySummary }}</span>
+                <span class="small muted">{{ c.valuerName }} · due {{ short(c.dueDate) }}</span>
+              </span>
+              @if (c.canSchedule) {
+                <button class="btn btn-ghost btn-sm" type="button" (click)="book(c)"><i class="fa-solid fa-calendar-plus"></i> Book</button>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  </aside>
+</div>
+
+<ng-template #row let-i>
+  <div class="item" [class.done]="i.done">
+    <span class="ic" [class]="badge(i)"><i class="fa-solid" [class]="icon(i)"></i></span>
+    <span class="main">
+      <span class="l1">
+        <span class="when">{{ i.time ? clock(i.time) : 'All day' }}</span>
+        <span class="small muted">{{ kindLabel(i) }}</span>
+        @if (i.overdue) { <span class="badge b-danger">{{ i.kind === 'visit' ? 'Not done' : 'Late' }}</span> }
+      </span>
+      <span class="tt">
+        @if (i.bankShortCode) { <span class="bank sm" [style.background]="i.bankColor">{{ i.bankShortCode }}</span> }
+        @if (i.assignmentId && i.assignmentNumber) { <a class="num" [routerLink]="['/assignments', i.assignmentId]">{{ i.assignmentNumber }}</a> }
+        @if (i.invoiceId) { <a class="num" [routerLink]="['/billing', i.invoiceId]">{{ i.title }}</a> } @else { {{ i.title }} }
+      </span>
+      @if (i.subtitle || i.personName) {
+        <span class="small muted">{{ i.subtitle }}@if (i.subtitle && i.personName) { · }{{ i.personName }}</span>
+      }
+      @if (i.notes) { <span class="small note">{{ i.notes }}</span> }
+    </span>
+    <span class="acts">
+      @if (i.kind === 'visit' && i.canMove) {
+        <button class="btn btn-icon" type="button" title="Move visit" aria-label="Move visit" (click)="moveVisit(i)"><i class="fa-solid fa-calendar-day"></i></button>
+      }
+      @if (i.kind === 'entry' && i.canMove) {
+        <button class="btn btn-icon" type="button" [title]="i.done ? 'Mark not done' : 'Mark done'" [attr.aria-label]="i.done ? 'Mark not done' : 'Mark done'" (click)="toggleDone(i)">
+          <i class="fa-solid" [class]="i.done ? 'fa-rotate-left' : 'fa-check'"></i>
+        </button>
+        <button class="btn btn-icon" type="button" title="Edit" aria-label="Edit" (click)="open(i)"><i class="fa-solid fa-pen"></i></button>
+      }
+    </span>
+  </div>
+</ng-template>
+
+@if (visitTarget(); as t) {
+  <vp-visit-dialog [target]="t" [today]="today()" [day]="selected()" (saved)="visitSaved($event)" (closed)="visitTarget.set(null)" />
+}
+@if (entry(); as e) {
+  <vp-entry-dialog [item]="e.item" [day]="e.day" [people]="feed()?.people ?? []" [meId]="meId()"
+    (saved)="entrySaved($event)" (removed)="entryRemoved()" (closed)="entry.set(null)" />
+}
